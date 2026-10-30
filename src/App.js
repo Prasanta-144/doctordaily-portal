@@ -282,14 +282,15 @@ export default function App() {
         </div>
       </section>
 
-      {/* 6. FOOTER */}
+            {/* 6. FOOTER */}
       <footer className="bg-white py-8 border-t border-gray-200 mt-auto text-center text-sm text-gray-500">
         <p>© 2026 DoctorDaily. All rights reserved.</p>
         <p className="mt-1 font-medium text-gray-600">Developed at Mina App Studios</p>
         <div className="flex justify-center gap-4 mt-2">
-          <a href="#" className="hover:text-brand">Privacy Policy</a>
-          <a href="#" className="hover:text-brand">Terms of Service</a>
-          <a href="#" className="hover:text-brand">Contact Support</a>
+          {/* Fixed the links below */}
+          <a href="https://github.com/Prasanta-144/doctordaily-portal" target="_blank" rel="noreferrer" className="hover:text-brand">Privacy Policy</a>
+          <a href="https://github.com/Prasanta-144/doctordaily-portal" target="_blank" rel="noreferrer" className="hover:text-brand">Terms of Service</a>
+          <a href="https://github.com/Prasanta-144/doctordaily-portal" target="_blank" rel="noreferrer" className="hover:text-brand">Contact Support</a>
         </div>
       </footer>
 
