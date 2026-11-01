@@ -100,7 +100,7 @@ export default function App() {
 
   // --- Routing logic ---
   if (view === 'dashboard') {
-    return <DoctorDashboard doctorPhone={loggedInPhone} onLogout={() => setView('landing')} />;
+    return <DoctorDashboard doctorId={loggedInPhone} onLogout={() => setView('landing')} />;
   }
 
   if (view === 'login') {

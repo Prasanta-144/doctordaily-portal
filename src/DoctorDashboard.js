@@ -1,30 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, updateDoc, getDoc } from "firebase/firestore";
 import { db } from "./firebase";
 
-export default function DoctorDashboard({ doctorPhone, onLogout }) {
+export default function DoctorDashboard({ doctorId, onLogout }) {
   const [appointments, setAppointments] = useState([]);
+  const [doctorName, setDoctorName] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchAppointments = async () => {
       setLoading(true);
       try {
-        const phoneE164 = doctorPhone.startsWith("+91") ? doctorPhone : `+91${doctorPhone}`;
+        // 1. Fetch Doctor Details
+        const doctorRef = doc(db, "doctors", doctorId);
+        const doctorSnap = await getDoc(doctorRef);
         
-        const doctorsRef = collection(db, "doctors");
-        const q = query(doctorsRef, where("phone", "==", phoneE164));
-        const doctorSnapshot = await getDocs(q);
-
-        if (doctorSnapshot.empty) {
-          alert("No doctor found with this phone number.");
+        if (doctorSnap.exists()) {
+          setDoctorName(doctorSnap.data().name);
+        } else {
+          alert("Doctor ID not found in database.");
           onLogout();
           setLoading(false);
           return;
         }
 
-        const doctorId = doctorSnapshot.docs[0].id;
-
+        // 2. Fetch Appointments directly using the ID
         const appointmentsRef = collection(db, "appointments");
         const apptQuery = query(appointmentsRef, where("doctorId", "==", doctorId));
         const apptSnapshot = await getDocs(apptQuery);
@@ -42,7 +42,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     };
 
     fetchAppointments();
-  }, [doctorPhone, onLogout]);
+  }, [doctorId, onLogout]);
 
   const markCompleted = async (appointmentId) => {
     if (!window.confirm("Mark this appointment as completed?")) return;
@@ -60,7 +60,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-brand">Doctor Dashboard</h1>
-            <p className="text-gray-500">Welcome back, Dr. {doctorPhone}</p>
+            <p className="text-gray-500">Welcome back, {doctorName || doctorId}</p>
           </div>
           <button onClick={onLogout} className="text-sm font-bold text-red-600 hover:underline">
             Sign Out
