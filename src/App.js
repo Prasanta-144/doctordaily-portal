@@ -2,12 +2,18 @@ import React, { useState } from 'react';
 import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
+import DoctorDashboard from './DoctorDashboard';
+import DoctorLogin from './DoctorLogin';
 
 export default function App() {
   const [step, setStep] = useState(1);
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  // View state for routing
+  const [view, setView] = useState('landing'); // 'landing', 'login', 'dashboard'
+  const [loggedInPhone, setLoggedInPhone] = useState('');
 
   const [formData, setFormData] = useState({
     name: '', specialization: 'General Medicine', qualifications: '', 
@@ -47,7 +53,7 @@ export default function App() {
     setLoading(true);
 
     try {
-      const apifyToken = "PASTE_YOUR_APIFY_TOKEN_HERE"; // <-- Make sure your token is here!
+      const apifyToken = "PASTE_YOUR_APIFY_TOKEN_HERE"; // Make sure your token is here
       const response = await fetch(
         `https://api.apify.com/v2/acts/whoareyouanas~nmc-doctor-lookup/run-sync-get-dataset-items?token=${apifyToken}`,
         {
@@ -58,8 +64,6 @@ export default function App() {
       );
 
       const data = await response.json();
-      
-      // TEMPORARY BYPASS: Change `true` to `false` when ready for strict checking
       const isVerified = data && data[0] ? data[0].isValid : true; 
       
       if (!isVerified) {
@@ -94,6 +98,19 @@ export default function App() {
 
   const handleInput = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
+  // --- Routing logic ---
+  if (view === 'dashboard') {
+    return <DoctorDashboard doctorPhone={loggedInPhone} onLogout={() => setView('landing')} />;
+  }
+
+  if (view === 'login') {
+    return <DoctorLogin onLogin={(phone) => {
+      setLoggedInPhone(phone);
+      setView('dashboard');
+    }} />;
+  }
+
+  // --- Landing Page ---
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
       
@@ -101,14 +118,20 @@ export default function App() {
       <nav className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            {/* Logo Added Here */}
             <img src="/logo.png" alt="DoctorDaily Logo" className="w-8 h-8 object-contain" />
             <span className="text-xl font-extrabold text-brand tracking-tight">DoctorDaily</span>
           </div>
-          <div className="hidden md:flex gap-6 text-sm font-medium text-gray-600">
+          
+          <div className="hidden md:flex gap-6 text-sm font-medium text-gray-600 items-center">
             <a href="#features" className="hover:text-brand transition">Why Join?</a>
             <a href="#download" className="hover:text-brand transition">DoctorDaily App</a>
-            <a href="#register" className="text-brand font-bold hover:opacity-80 transition">Register Now</a>
+            <button 
+              onClick={() => setView('login')} 
+              className="border border-brand text-brand px-4 py-1.5 rounded-full font-bold hover:bg-brand hover:text-white transition"
+            >
+              Doctor Login
+            </button>
+            <a href="#register" className="bg-brand text-white px-4 py-1.5 rounded-full font-bold hover:opacity-80 transition">Register</a>
           </div>
         </div>
       </nav>
@@ -116,7 +139,6 @@ export default function App() {
       {/* 2. HERO SECTION */}
       <header className="bg-brand text-white py-20 px-6 text-center">
         <div className="max-w-4xl mx-auto flex flex-col items-center">
-          {/* Logo Added Here for Hero */}
           <img src="/logo.png" alt="DoctorDaily Logo" className="w-20 h-20 object-contain mb-6 bg-white rounded-2xl p-2 shadow-lg" />
           <h1 className="text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
             Grow your practice.<br/>Manage appointments effortlessly.
@@ -155,7 +177,7 @@ export default function App() {
         </div>
       </section>
 
-      {/* 4. DOWNLOAD APP & RATINGS (With QR Code) */}
+      {/* 4. DOWNLOAD APP & RATINGS */}
       <section id="download" className="bg-gray-100 py-20 px-6">
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-12">
           <div className="md:w-1/2">
@@ -165,12 +187,10 @@ export default function App() {
             </p>
             
             <div className="flex flex-col sm:flex-row items-center gap-6 mt-6">
-              {/* Download Button */}
               <a href="https://github.com/Prasanta-144/mina-app-apks/releases/download/v1/DoctorDaily-v1.apk" className="bg-brand text-white px-8 py-3 rounded-xl flex items-center justify-center font-bold hover:bg-opacity-90 transition shadow-md whitespace-nowrap">
                 Download APK
               </a>
               
-              {/* QR Code */}
               <div className="flex flex-col items-center">
                 <img 
                   src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https://github.com/Prasanta-144/mina-app-apks/releases/download/v1/DoctorDaily-v1.apk" 
@@ -204,7 +224,6 @@ export default function App() {
         <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
           <div id="recaptcha-container"></div>
 
-          {/* STEP 1: PHONE */}
           {step === 1 && (
             <div className="space-y-5">
               <div className="text-center mb-4">
@@ -218,7 +237,6 @@ export default function App() {
             </div>
           )}
 
-          {/* STEP 2: OTP */}
           {step === 2 && (
             <div className="space-y-5">
               <div className="text-center mb-4">
@@ -232,7 +250,6 @@ export default function App() {
             </div>
           )}
 
-          {/* STEP 3: FORM */}
           {step === 3 && (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="text-center mb-4">
@@ -271,7 +288,6 @@ export default function App() {
             </form>
           )}
 
-          {/* STEP 4: SUCCESS */}
           {step === 4 && (
             <div className="text-center space-y-4 py-8">
               <div className="text-6xl">✅</div>
@@ -282,12 +298,11 @@ export default function App() {
         </div>
       </section>
 
-            {/* 6. FOOTER */}
+      {/* 6. FOOTER */}
       <footer className="bg-white py-8 border-t border-gray-200 mt-auto text-center text-sm text-gray-500">
         <p>© 2026 DoctorDaily. All rights reserved.</p>
         <p className="mt-1 font-medium text-gray-600">Developed at Mina App Studios</p>
         <div className="flex justify-center gap-4 mt-2">
-          {/* Fixed the links below */}
           <a href="https://github.com/Prasanta-144/doctordaily-portal" target="_blank" rel="noreferrer" className="hover:text-brand">Privacy Policy</a>
           <a href="https://github.com/Prasanta-144/doctordaily-portal" target="_blank" rel="noreferrer" className="hover:text-brand">Terms of Service</a>
           <a href="https://github.com/Prasanta-144/doctordaily-portal" target="_blank" rel="noreferrer" className="hover:text-brand">Contact Support</a>
