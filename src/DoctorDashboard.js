@@ -12,12 +12,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     const fetchAppointments = async () => {
       setLoading(true);
       setError(null);
-      
       try {
-        // 1. Format the phone number to match how Firebase Auth saves it
         const phoneE164 = doctorPhone.startsWith("+91") ? doctorPhone : `+91${doctorPhone}`;
-        
-        // 2. Find the doctor using their phone number
         const doctorsRef = collection(db, "doctors");
         const q = query(doctorsRef, where("phone", "==", phoneE164));
         const doctorSnapshot = await getDocs(q);
@@ -32,15 +28,15 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         const doctorId = doctorDoc.id;
         setDoctorName(doctorDoc.data().name);
 
-        // 3. Fetch Appointments using the Doctor's ID
         const appointmentsRef = collection(db, "appointments");
         const apptQuery = query(appointmentsRef, where("doctorId", "==", doctorId));
         const apptSnapshot = await getDocs(apptQuery);
 
+        // Keep both Upcoming and Completed
         const appts = apptSnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
-        })).filter(a => a.status === "Upcoming");
+        })).filter(a => a.status === "Upcoming" || a.status === "Completed");
 
         setAppointments(appts);
       } catch (error) {
@@ -54,14 +50,21 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   }, [doctorPhone, onLogout]);
 
   const markCompleted = async (appointmentId) => {
-    if (!window.confirm("Mark this appointment as completed?")) return;
     try {
-      await updateDoc(doc(db, "appointments", appointmentId), { status: "Past" });
-      setAppointments(prev => prev.filter(a => a.id !== appointmentId));
+      await updateDoc(doc(db, "appointments", appointmentId), { status: "Completed" });
+      // Update local state to reflect the change without reloading
+      setAppointments(prev => prev.map(a => a.id === appointmentId ? { ...a, status: "Completed" } : a));
     } catch (error) {
       alert("Error updating: " + error.message);
     }
   };
+
+  const clearCompleted = () => {
+    // Simply removes from the UI list, keeps it in Firestore for records
+    setAppointments(prev => prev.filter(a => a.status !== "Completed"));
+  };
+
+  const hasCompleted = appointments.some(a => a.status === "Completed");
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -77,7 +80,14 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           </button>
         </div>
 
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Your Upcoming Queue</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-gray-800">Your Queue</h2>
+          {hasCompleted && (
+            <button onClick={clearCompleted} className="text-sm font-bold text-gray-500 hover:text-gray-800">
+              Clear Completed List
+            </button>
+          )}
+        </div>
         
         {loading ? (
           <p>Loading appointments...</p>
@@ -88,39 +98,43 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           </div>
         ) : appointments.length === 0 ? (
           <div className="bg-white p-8 text-center rounded-xl shadow-sm border border-gray-100">
-            <p className="text-gray-500">No upcoming appointments right now.</p>
+            <p className="text-gray-500">No appointments in the queue right now.</p>
           </div>
         ) : (
           <div className="grid gap-4">
-            {appointments.map((appt) => (
-              <div key={appt.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
-                <div className="pr-4">
-                  <h3 className="text-lg font-bold text-gray-800">{appt.patient}</h3>
-                  <p className="text-sm text-gray-500">Phone: {appt.phone}</p>
-                  <p className="text-sm text-brand font-medium mt-1">
-                    {appt.dayLabel} at {appt.slot} | Token #{appt.token}
-                  </p>
-                  
-                  {/* --- NEW: Display Reason if it exists --- */}
-                  {appt.reason && (
-                    <div className="mt-3 bg-gray-50 border border-gray-200 p-3 rounded-lg">
-                      <p className="text-sm text-gray-700">
-                        <span className="font-semibold text-gray-900">Reason for visit:</span> {appt.reason}
-                      </p>
+            {appointments.map((appt) => {
+              const isCompleted = appt.status === "Completed";
+              return (
+                <div key={appt.id} className={`p-6 rounded-xl shadow-sm border flex justify-between items-center transition ${isCompleted ? 'bg-gray-100 border-gray-200 opacity-75' : 'bg-white border-gray-100'}`}>
+                  <div className="pr-4">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-bold text-gray-800">{appt.patient}</h3>
+                      {isCompleted && <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-bold">Completed</span>}
                     </div>
-                  )}
-                  
+                    <p className="text-sm text-gray-500">Phone: {appt.phone}</p>
+                    <p className="text-sm text-brand font-medium mt-1">
+                      {appt.dayLabel} at {appt.slot} | Token #{appt.token}
+                    </p>
+                    {appt.reason && (
+                      <div className="mt-3 bg-gray-50 border border-gray-200 p-3 rounded-lg">
+                        <p className="text-sm text-gray-700">
+                          <span className="font-semibold text-gray-900">Reason:</span> {appt.reason}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-shrink-0">
+                    <button 
+                      onClick={() => markCompleted(appt.id)}
+                      disabled={isCompleted}
+                      className={`px-4 py-2 rounded-lg font-bold transition ${isCompleted ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
+                    >
+                      {isCompleted ? "Done" : "Complete"}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex-shrink-0">
-                  <button 
-                    onClick={() => markCompleted(appt.id)}
-                    className="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-bold hover:bg-green-200 transition"
-                  >
-                    Complete
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
