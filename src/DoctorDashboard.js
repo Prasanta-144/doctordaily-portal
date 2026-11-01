@@ -135,6 +135,18 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                         </p>
                       </div>
                     )}
+
+                    {/* --- NEW: Payment Badge --- */}
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className={`text-xs px-3 py-1 rounded-full font-bold ${
+                        appt.paymentStatus === 'Paid' 
+                          ? 'bg-green-100 text-green-700 border border-green-200' 
+                          : 'bg-orange-100 text-orange-700 border border-orange-200'
+                      }`}>
+                        {appt.paymentStatus === 'Paid' ? '💰 Paid Online' : '💵 Pay at Clinic'}
+                      </span>
+                    </div>
+                    {/* --------------------------- */}
                   </div>
                   
                   <div className="flex-shrink-0 flex gap-2">
