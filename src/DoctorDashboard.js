@@ -6,20 +6,27 @@ export default function DoctorDashboard({ doctorId, onLogout }) {
   const [appointments, setAppointments] = useState([]);
   const [doctorName, setDoctorName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchAppointments = async () => {
       setLoading(true);
+      setError(null);
+      
+      // Debug log to see exactly what ID is being passed
+      console.log("Attempting to fetch Doctor ID:", doctorId); 
+
       try {
         // 1. Fetch Doctor Details
         const doctorRef = doc(db, "doctors", doctorId);
         const doctorSnap = await getDoc(doctorRef);
         
         if (doctorSnap.exists()) {
+          console.log("Doctor found:", doctorSnap.data().name);
           setDoctorName(doctorSnap.data().name);
         } else {
-          alert("Doctor ID not found in database.");
-          onLogout();
+          console.error("Firestore says this document does NOT exist.");
+          setError("Doctor ID not found. Please check the ID and try again.");
           setLoading(false);
           return;
         }
@@ -28,6 +35,8 @@ export default function DoctorDashboard({ doctorId, onLogout }) {
         const appointmentsRef = collection(db, "appointments");
         const apptQuery = query(appointmentsRef, where("doctorId", "==", doctorId));
         const apptSnapshot = await getDocs(apptQuery);
+        
+        console.log("Total appointments found:", apptSnapshot.size);
 
         const appts = apptSnapshot.docs.map(doc => ({
           id: doc.id,
@@ -37,6 +46,7 @@ export default function DoctorDashboard({ doctorId, onLogout }) {
         setAppointments(appts);
       } catch (error) {
         console.error("Error fetching data:", error);
+        setError("Failed to connect to database. Check console for details.");
       }
       setLoading(false);
     };
@@ -60,7 +70,8 @@ export default function DoctorDashboard({ doctorId, onLogout }) {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-brand">Doctor Dashboard</h1>
-            <p className="text-gray-500">Welcome back, {doctorName || doctorId}</p>
+            <p className="text-gray-500">Welcome back, {doctorName || "Loading..."}</p>
+            <p className="text-xs text-gray-400 mt-1">ID: {doctorId}</p>
           </div>
           <button onClick={onLogout} className="text-sm font-bold text-red-600 hover:underline">
             Sign Out
@@ -71,6 +82,11 @@ export default function DoctorDashboard({ doctorId, onLogout }) {
         
         {loading ? (
           <p>Loading appointments...</p>
+        ) : error ? (
+          <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-200">
+            <p>{error}</p>
+            <button onClick={onLogout} className="mt-2 bg-red-600 text-white px-4 py-2 rounded font-bold">Go Back</button>
+          </div>
         ) : appointments.length === 0 ? (
           <div className="bg-white p-8 text-center rounded-xl shadow-sm border border-gray-100">
             <p className="text-gray-500">No upcoming appointments right now.</p>
