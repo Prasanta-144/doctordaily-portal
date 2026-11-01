@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
 import { db } from "./firebase";
 
-export default function DoctorDashboard({ doctorId, onLogout }) {
+export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [appointments, setAppointments] = useState([]);
   const [doctorName, setDoctorName] = useState('');
   const [loading, setLoading] = useState(true);
@@ -14,32 +14,28 @@ export default function DoctorDashboard({ doctorId, onLogout }) {
       setError(null);
       
       try {
-        console.log("Fetching all doctors to bypass ID typing errors...");
+        // 1. Format the phone number to match how Firebase Auth saves it
+        const phoneE164 = doctorPhone.startsWith("+91") ? doctorPhone : `+91${doctorPhone}`;
         
-        // 1. Get all doctors from the database
+        // 2. Find the doctor using their phone number
         const doctorsRef = collection(db, "doctors");
-        const allDocs = await getDocs(doctorsRef);
-        
-        if (allDocs.empty) {
-          setError("No doctors found in the database at all!");
+        const q = query(doctorsRef, where("phone", "==", phoneE164));
+        const doctorSnapshot = await getDocs(q);
+
+        if (doctorSnapshot.empty) {
+          setError("No doctor found with this phone number. Please register first.");
           setLoading(false);
           return;
         }
 
-        // 2. Grab the first doctor automatically
-        const firstDoctor = allDocs.docs[0];
-        const actualId = firstDoctor.id;
-        setDoctorName(firstDoctor.data().name);
-        
-        console.log("Auto-found Doctor:", firstDoctor.data().name);
-        console.log("Using exact database ID:", actualId);
+        const doctorDoc = doctorSnapshot.docs[0];
+        const doctorId = doctorDoc.id;
+        setDoctorName(doctorDoc.data().name);
 
-        // 3. Fetch appointments using the perfect ID
+        // 3. Fetch Appointments using the Doctor's ID
         const appointmentsRef = collection(db, "appointments");
-        const apptQuery = query(appointmentsRef, where("doctorId", "==", actualId));
+        const apptQuery = query(appointmentsRef, where("doctorId", "==", doctorId));
         const apptSnapshot = await getDocs(apptQuery);
-        
-        console.log("Total appointments found:", apptSnapshot.size);
 
         const appts = apptSnapshot.docs.map(doc => ({
           id: doc.id,
@@ -49,13 +45,13 @@ export default function DoctorDashboard({ doctorId, onLogout }) {
         setAppointments(appts);
       } catch (error) {
         console.error("Error fetching data:", error);
-        setError("Failed to connect to database. Check console.");
+        setError("Failed to connect to database.");
       }
       setLoading(false);
     };
 
     fetchAppointments();
-  }, [onLogout]); // Removed doctorId so it doesn't loop
+  }, [doctorPhone, onLogout]);
 
   const markCompleted = async (appointmentId) => {
     if (!window.confirm("Mark this appointment as completed?")) return;
@@ -74,7 +70,7 @@ export default function DoctorDashboard({ doctorId, onLogout }) {
           <div>
             <h1 className="text-3xl font-bold text-brand">Doctor Dashboard</h1>
             <p className="text-gray-500">Welcome back, {doctorName || "Loading..."}</p>
-            <p className="text-xs text-gray-400 mt-1">Test Mode: Auto-fetching first doctor</p>
+            <p className="text-xs text-gray-400 mt-1">Logged in as: {doctorPhone}</p>
           </div>
           <button onClick={onLogout} className="text-sm font-bold text-red-600 hover:underline">
             Sign Out

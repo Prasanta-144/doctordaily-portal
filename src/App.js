@@ -99,8 +99,8 @@ export default function App() {
   const handleInput = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   // --- Routing logic ---
-  if (view === 'dashboard') {
-    return <DoctorDashboard doctorId={loggedInPhone} onLogout={() => setView('landing')} />;
+    if (view === 'dashboard') {
+    return <DoctorDashboard doctorPhone={loggedInPhone} onLogout={() => setView('landing')} />;
   }
 
   if (view === 'login') {
@@ -109,7 +109,6 @@ export default function App() {
       setView('dashboard');
     }} />;
   }
-
   // --- Landing Page ---
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
