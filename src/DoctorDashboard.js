@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, getDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
 import { db } from "./firebase";
 
 export default function DoctorDashboard({ doctorId, onLogout }) {
@@ -13,27 +13,30 @@ export default function DoctorDashboard({ doctorId, onLogout }) {
       setLoading(true);
       setError(null);
       
-      // Debug log to see exactly what ID is being passed
-      console.log("Attempting to fetch Doctor ID:", doctorId); 
-
       try {
-        // 1. Fetch Doctor Details
-        const doctorRef = doc(db, "doctors", doctorId);
-        const doctorSnap = await getDoc(doctorRef);
+        console.log("Fetching all doctors to bypass ID typing errors...");
         
-        if (doctorSnap.exists()) {
-          console.log("Doctor found:", doctorSnap.data().name);
-          setDoctorName(doctorSnap.data().name);
-        } else {
-          console.error("Firestore says this document does NOT exist.");
-          setError("Doctor ID not found. Please check the ID and try again.");
+        // 1. Get all doctors from the database
+        const doctorsRef = collection(db, "doctors");
+        const allDocs = await getDocs(doctorsRef);
+        
+        if (allDocs.empty) {
+          setError("No doctors found in the database at all!");
           setLoading(false);
           return;
         }
 
-        // 2. Fetch Appointments directly using the ID
+        // 2. Grab the first doctor automatically
+        const firstDoctor = allDocs.docs[0];
+        const actualId = firstDoctor.id;
+        setDoctorName(firstDoctor.data().name);
+        
+        console.log("Auto-found Doctor:", firstDoctor.data().name);
+        console.log("Using exact database ID:", actualId);
+
+        // 3. Fetch appointments using the perfect ID
         const appointmentsRef = collection(db, "appointments");
-        const apptQuery = query(appointmentsRef, where("doctorId", "==", doctorId));
+        const apptQuery = query(appointmentsRef, where("doctorId", "==", actualId));
         const apptSnapshot = await getDocs(apptQuery);
         
         console.log("Total appointments found:", apptSnapshot.size);
@@ -46,13 +49,13 @@ export default function DoctorDashboard({ doctorId, onLogout }) {
         setAppointments(appts);
       } catch (error) {
         console.error("Error fetching data:", error);
-        setError("Failed to connect to database. Check console for details.");
+        setError("Failed to connect to database. Check console.");
       }
       setLoading(false);
     };
 
     fetchAppointments();
-  }, [doctorId, onLogout]);
+  }, [onLogout]); // Removed doctorId so it doesn't loop
 
   const markCompleted = async (appointmentId) => {
     if (!window.confirm("Mark this appointment as completed?")) return;
@@ -71,7 +74,7 @@ export default function DoctorDashboard({ doctorId, onLogout }) {
           <div>
             <h1 className="text-3xl font-bold text-brand">Doctor Dashboard</h1>
             <p className="text-gray-500">Welcome back, {doctorName || "Loading..."}</p>
-            <p className="text-xs text-gray-400 mt-1">ID: {doctorId}</p>
+            <p className="text-xs text-gray-400 mt-1">Test Mode: Auto-fetching first doctor</p>
           </div>
           <button onClick={onLogout} className="text-sm font-bold text-red-600 hover:underline">
             Sign Out
