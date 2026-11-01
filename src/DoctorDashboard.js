@@ -94,14 +94,24 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           <div className="grid gap-4">
             {appointments.map((appt) => (
               <div key={appt.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
-                <div>
+                <div className="pr-4">
                   <h3 className="text-lg font-bold text-gray-800">{appt.patient}</h3>
                   <p className="text-sm text-gray-500">Phone: {appt.phone}</p>
                   <p className="text-sm text-brand font-medium mt-1">
                     {appt.dayLabel} at {appt.slot} | Token #{appt.token}
                   </p>
+                  
+                  {/* --- NEW: Display Reason if it exists --- */}
+                  {appt.reason && (
+                    <div className="mt-3 bg-gray-50 border border-gray-200 p-3 rounded-lg">
+                      <p className="text-sm text-gray-700">
+                        <span className="font-semibold text-gray-900">Reason for visit:</span> {appt.reason}
+                      </p>
+                    </div>
+                  )}
+                  
                 </div>
-                <div className="flex gap-2">
+                <div className="flex-shrink-0">
                   <button 
                     onClick={() => markCompleted(appt.id)}
                     className="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-bold hover:bg-green-200 transition"
