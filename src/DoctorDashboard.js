@@ -7,47 +7,42 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchAppointments();
-  }, [doctorPhone]);
+    const fetchAppointments = async () => {
+      setLoading(true);
+      try {
+        const phoneE164 = doctorPhone.startsWith("+91") ? doctorPhone : `+91${doctorPhone}`;
+        
+        const doctorsRef = collection(db, "doctors");
+        const q = query(doctorsRef, where("phone", "==", phoneE164));
+        const doctorSnapshot = await getDocs(q);
 
-  const fetchAppointments = async () => {
-    setLoading(true);
-    try {
-      // 1. Find the doctor's UID using their phone number
-      // Note: In Firestore, phone numbers are saved with "+91"
-      const phoneE164 = doctorPhone.startsWith("+91") ? doctorPhone : `+91${doctorPhone}`;
-      
-      const doctorsRef = collection(db, "doctors");
-      const q = query(doctorsRef, where("phone", "==", phoneE164));
-      const doctorSnapshot = await getDocs(q);
+        if (doctorSnapshot.empty) {
+          alert("No doctor found with this phone number.");
+          onLogout();
+          setLoading(false);
+          return;
+        }
 
-      if (doctorSnapshot.empty) {
-        alert("No doctor found with this phone number.");
-        onLogout();
-        setLoading(false);
-        return;
+        const doctorId = doctorSnapshot.docs[0].id;
+
+        const appointmentsRef = collection(db, "appointments");
+        const apptQuery = query(appointmentsRef, where("doctorId", "==", doctorId));
+        const apptSnapshot = await getDocs(apptQuery);
+
+        const appts = apptSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })).filter(a => a.status === "Upcoming");
+
+        setAppointments(appts);
+      } catch (error) {
+        console.error("Error fetching data:", error);
       }
+      setLoading(false);
+    };
 
-      const doctorDoc = doctorSnapshot.docs[0];
-      const doctorId = doctorDoc.id;
-      const doctorData = doctorDoc.data();
-
-      // 2. Fetch appointments for this doctor
-      const appointmentsRef = collection(db, "appointments");
-      const apptQuery = query(appointmentsRef, where("doctorId", "==", doctorId));
-      const apptSnapshot = await getDocs(apptQuery);
-
-      const appts = apptSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })).filter(a => a.status === "Upcoming"); // Only show upcoming for now
-
-      setAppointments(appts);
-    } catch (error) {
-      console.error("Error fetching data:", error);
-    }
-    setLoading(false);
-  };
+    fetchAppointments();
+  }, [doctorPhone, onLogout]);
 
   const markCompleted = async (appointmentId) => {
     if (!window.confirm("Mark this appointment as completed?")) return;
