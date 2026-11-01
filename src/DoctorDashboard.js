@@ -12,6 +12,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     const fetchAppointments = async () => {
       setLoading(true);
       setError(null);
+      
       try {
         const phoneE164 = doctorPhone.startsWith("+91") ? doctorPhone : `+91${doctorPhone}`;
         const doctorsRef = collection(db, "doctors");
@@ -32,11 +33,18 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         const apptQuery = query(appointmentsRef, where("doctorId", "==", doctorId));
         const apptSnapshot = await getDocs(apptQuery);
 
-        // Keep both Upcoming and Completed
+        // Fetch Pending, Upcoming, and Completed
         const appts = apptSnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
-        })).filter(a => a.status === "Upcoming" || a.status === "Completed");
+        })).filter(a => ["Pending", "Upcoming", "Completed"].includes(a.status));
+
+        // Sort so Pending is always at the top
+        appts.sort((a, b) => {
+            if (a.status === "Pending" && b.status !== "Pending") return -1;
+            if (a.status !== "Pending" && b.status === "Pending") return 1;
+            return 0;
+        });
 
         setAppointments(appts);
       } catch (error) {
@@ -49,18 +57,16 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     fetchAppointments();
   }, [doctorPhone, onLogout]);
 
-  const markCompleted = async (appointmentId) => {
+  const updateStatus = async (appointmentId, newStatus) => {
     try {
-      await updateDoc(doc(db, "appointments", appointmentId), { status: "Completed" });
-      // Update local state to reflect the change without reloading
-      setAppointments(prev => prev.map(a => a.id === appointmentId ? { ...a, status: "Completed" } : a));
+      await updateDoc(doc(db, "appointments", appointmentId), { status: newStatus });
+      setAppointments(prev => prev.map(a => a.id === appointmentId ? { ...a, status: newStatus } : a));
     } catch (error) {
       alert("Error updating: " + error.message);
     }
   };
 
   const clearCompleted = () => {
-    // Simply removes from the UI list, keeps it in Firestore for records
     setAppointments(prev => prev.filter(a => a.status !== "Completed"));
   };
 
@@ -103,12 +109,19 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         ) : (
           <div className="grid gap-4">
             {appointments.map((appt) => {
+              const isPending = appt.status === "Pending";
               const isCompleted = appt.status === "Completed";
+              
               return (
-                <div key={appt.id} className={`p-6 rounded-xl shadow-sm border flex justify-between items-center transition ${isCompleted ? 'bg-gray-100 border-gray-200 opacity-75' : 'bg-white border-gray-100'}`}>
+                <div key={appt.id} className={`p-6 rounded-xl shadow-sm border flex justify-between items-center transition ${
+                  isPending ? 'bg-yellow-50 border-yellow-200' : 
+                  isCompleted ? 'bg-gray-100 border-gray-200 opacity-75' : 
+                  'bg-white border-gray-100'
+                }`}>
                   <div className="pr-4">
                     <div className="flex items-center gap-2">
                       <h3 className="text-lg font-bold text-gray-800">{appt.patient}</h3>
+                      {isPending && <span className="bg-yellow-200 text-yellow-800 text-xs px-2 py-1 rounded-full font-bold">Pending Approval</span>}
                       {isCompleted && <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-bold">Completed</span>}
                     </div>
                     <p className="text-sm text-gray-500">Phone: {appt.phone}</p>
@@ -116,21 +129,40 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                       {appt.dayLabel} at {appt.slot} | Token #{appt.token}
                     </p>
                     {appt.reason && (
-                      <div className="mt-3 bg-gray-50 border border-gray-200 p-3 rounded-lg">
+                      <div className="mt-3 bg-white/50 border border-gray-200 p-3 rounded-lg">
                         <p className="text-sm text-gray-700">
                           <span className="font-semibold text-gray-900">Reason:</span> {appt.reason}
                         </p>
                       </div>
                     )}
                   </div>
-                  <div className="flex-shrink-0">
-                    <button 
-                      onClick={() => markCompleted(appt.id)}
-                      disabled={isCompleted}
-                      className={`px-4 py-2 rounded-lg font-bold transition ${isCompleted ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
-                    >
-                      {isCompleted ? "Done" : "Complete"}
-                    </button>
+                  
+                  <div className="flex-shrink-0 flex gap-2">
+                    {/* PENDING ACTIONS */}
+                    {isPending && (
+                      <>
+                        <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 transition shadow-sm">
+                          Accept
+                        </button>
+                        <button onClick={() => updateStatus(appt.id, "Cancelled")} className="bg-red-100 text-red-700 px-4 py-2 rounded-lg font-bold hover:bg-red-200 transition">
+                          Decline
+                        </button>
+                      </>
+                    )}
+
+                    {/* UPCOMING ACTIONS */}
+                    {appt.status === "Upcoming" && (
+                      <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-bold hover:bg-green-200 transition">
+                        Complete
+                      </button>
+                    )}
+
+                    {/* COMPLETED ACTIONS */}
+                    {isCompleted && (
+                      <button disabled className="bg-gray-200 text-gray-400 px-4 py-2 rounded-lg font-bold cursor-not-allowed">
+                        Done
+                      </button>
+                    )}
                   </div>
                 </div>
               );
