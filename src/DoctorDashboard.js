@@ -75,15 +75,24 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   return (
     <div className="min-h-screen bg-[#FAFAFC] p-6">
       <div className="max-w-4xl mx-auto">
+        
+        {/* HEADER SECTION */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-extrabold text-brand tracking-tight">Doctor Dashboard</h1>
             <p className="text-slate-600 mt-1">Welcome back, {doctorName || "Loading..."}</p>
             <p className="text-xs text-slate-400 mt-1">Logged in as: {doctorPhone}</p>
           </div>
-          <button onClick={onLogout} className="text-sm font-bold text-red-600 hover:text-red-700 transition">
-            Sign Out
-          </button>
+          
+          {/* NEW: Navigation Buttons */}
+          <div className="flex items-center gap-6">
+            <a href="/" className="text-sm font-bold text-slate-500 hover:text-brand transition">
+              Back to Homepage
+            </a>
+            <button onClick={onLogout} className="text-sm font-bold text-red-600 hover:text-red-700 transition border-l border-slate-300 pl-6">
+              Sign Out
+            </button>
+          </div>
         </div>
 
         <div className="flex justify-between items-center mb-4">
@@ -156,7 +165,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                       </div>
                     )}
 
-                    {/* --- UPDATED: Payment Badge --- */}
+                    {/* Payment Badge */}
                     <div className="mt-3 flex items-center gap-2">
                       <span className={`text-xs px-3 py-1 rounded-full font-bold border ${badgeStyle}`}>
                         {badgeText}
