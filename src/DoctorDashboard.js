@@ -73,7 +73,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const hasCompleted = appointments.some(a => a.status === "Completed");
 
   return (
-    <div className="min-h-screen bg-[#FAFAFC] p-6"> {/* Soft background matching the app */}
+    <div className="min-h-screen bg-[#FAFAFC] p-6">
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -111,8 +111,23 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             {appointments.map((appt) => {
               const isPending = appt.status === "Pending";
               const isCompleted = appt.status === "Completed";
-              const isPaid = appt.paymentStatus === "Paid";
               
+              // --- NEW LOGIC FOR PAYMENT BADGE ---
+              const isOnlinePaid = appt.paymentMethod === "Online" && appt.paymentStatus === "Paid";
+              const isPayAtClinic = appt.paymentMethod === "Pay at Clinic";
+              
+              let badgeText = "⏳ Payment Pending";
+              let badgeStyle = "bg-red-50 text-red-700 border-red-200"; // Default fallback
+
+              if (isOnlinePaid) {
+                badgeText = "💳 Paid";
+                badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200";
+              } else if (isPayAtClinic) {
+                badgeText = "💵 To be paid at clinic";
+                badgeStyle = "bg-orange-50 text-orange-700 border-orange-200";
+              }
+              // -----------------------------------
+
               return (
                 <div key={appt.id} className={`p-6 rounded-2xl shadow-sm border flex justify-between items-center transition ${
                   isPending ? 'bg-amber-50 border-amber-200' : 
@@ -143,12 +158,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
                     {/* --- UPDATED: Payment Badge --- */}
                     <div className="mt-3 flex items-center gap-2">
-                      <span className={`text-xs px-3 py-1 rounded-full font-bold border ${
-                        isPaid 
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                          : 'bg-orange-50 text-orange-700 border-orange-200'
-                      }`}>
-                        {isPaid ? '💳 Payment Received' : '⏳ Payment Pending'}
+                      <span className={`text-xs px-3 py-1 rounded-full font-bold border ${badgeStyle}`}>
+                        {badgeText}
                       </span>
                     </div>
                     
