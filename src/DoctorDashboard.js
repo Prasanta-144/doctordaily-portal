@@ -5,17 +5,19 @@ import { db } from "./firebase";
 export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [appointments, setAppointments] = useState([]);
   const [doctorName, setDoctorName] = useState('');
-  const [doctorId, setDoctorId] = useState(null); // Store ID for saving schedule
+  const [doctorId, setDoctorId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // --- NEW: Schedule State ---
+  // --- Schedule State ---
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [dateToBlock, setDateToBlock] = useState("");
   const [schedule, setSchedule] = useState({
     workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
     startTime: "10:00",
     endTime: "17:00",
-    slotDuration: 30
+    slotDuration: 30,
+    blockedDates: [] // <-- NEW
   });
 
   useEffect(() => {
@@ -39,9 +41,11 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         setDoctorId(doctorDoc.id);
         setDoctorName(doctorDoc.data().name);
         
-        // Load their existing schedule if they have one
         if (doctorDoc.data().schedule) {
-          setSchedule(doctorDoc.data().schedule);
+          setSchedule({
+            ...doctorDoc.data().schedule,
+            blockedDates: doctorDoc.data().schedule.blockedDates || [] // Fallback for older docs
+          });
         }
 
         const appointmentsRef = collection(db, "appointments");
@@ -86,7 +90,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         status: "Pending",
         rescheduleRequested: true 
       });
-      
       setAppointments(prev => prev.map(a => a.id === appt.id ? { ...a, status: "Pending", rescheduleRequested: true } : a));
     } catch (error) {
       alert("Error updating: " + error.message);
@@ -97,12 +100,11 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     setAppointments(prev => prev.filter(a => a.status !== "Completed"));
   };
 
-  // --- NEW: Save Schedule to Firestore ---
   const saveSchedule = async () => {
     if (!doctorId) return;
     try {
       await updateDoc(doc(db, "doctors", doctorId), { schedule: schedule });
-      alert("Schedule updated successfully! Patients will now only see these slots.");
+      alert("Schedule and Blocked Dates updated successfully!");
       setShowScheduleModal(false);
     } catch (error) {
       alert("Error saving schedule: " + error.message);
@@ -115,7 +117,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     <div className="min-h-screen bg-[#FAFAFC] p-6 font-sans">
       <div className="max-w-4xl mx-auto">
         
-        {/* HEADER SECTION */}
         <div className="flex justify-between items-center mb-10">
           <div>
             <h1 className="text-4xl font-serif text-brand tracking-tight">Doctor Dashboard</h1>
@@ -124,17 +125,11 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           </div>
           
           <div className="flex items-center gap-6">
-            {/* NEW: Manage Schedule Button */}
-            <button 
-              onClick={() => setShowScheduleModal(true)} 
-              className="text-sm font-bold bg-white border border-brand text-brand px-4 py-2 rounded-xl hover:bg-brand hover:text-white transition shadow-sm"
-            >
+            <button onClick={() => setShowScheduleModal(true)} className="text-sm font-bold bg-white border border-brand text-brand px-4 py-2 rounded-xl hover:bg-brand hover:text-white transition shadow-sm">
               Manage Schedule
             </button>
             <a href="/" className="text-sm font-semibold text-slate-500 hover:text-brand transition">Homepage</a>
-            <button onClick={onLogout} className="text-sm font-semibold text-rose-500 hover:text-rose-600 transition border-l border-slate-200 pl-6">
-              Sign Out
-            </button>
+            <button onClick={onLogout} className="text-sm font-semibold text-rose-500 hover:text-rose-600 transition border-l border-slate-200 pl-6">Sign Out</button>
           </div>
         </div>
 
@@ -187,7 +182,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                   <div className="pr-4">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-xl font-bold text-slate-800">{appt.patient}</h3>
-                      
                       {isPending && !appt.rescheduleRequested && <span className="bg-amber-100 text-amber-700 border border-amber-200 text-xs px-3 py-1 rounded-full font-bold">Pending Approval</span>}
                       {appt.rescheduleRequested && <span className="bg-rose-100 text-rose-700 border border-rose-200 text-xs px-3 py-1 rounded-full font-bold">⚠️ Awaiting Patient Action</span>}
                       {isCompleted && <span className="bg-slate-200 text-slate-700 text-xs px-3 py-1 rounded-full font-bold">Completed</span>}
@@ -207,39 +201,25 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                     )}
 
                     <div className="mt-4 flex items-center gap-2">
-                      <span className={`text-xs px-3 py-1.5 rounded-full font-bold border ${badgeStyle}`}>
-                        {badgeText}
-                      </span>
+                      <span className={`text-xs px-3 py-1.5 rounded-full font-bold border ${badgeStyle}`}>{badgeText}</span>
                     </div>
                   </div>
                   
                   <div className="flex-shrink-0 flex flex-col gap-2">
                     {isPending && !appt.rescheduleRequested && (
                       <>
-                        <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-brand text-white px-6 py-2.5 rounded-xl font-bold hover:bg-opacity-90 transition shadow-sm w-full">
-                          Accept
-                        </button>
-                        <button onClick={() => updateStatus(appt.id, "Cancelled")} className="bg-white border border-rose-200 text-rose-600 px-6 py-2.5 rounded-xl font-bold hover:bg-rose-50 transition w-full">
-                          Decline
-                        </button>
+                        <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-brand text-white px-6 py-2.5 rounded-xl font-bold hover:bg-opacity-90 transition shadow-sm w-full">Accept</button>
+                        <button onClick={() => updateStatus(appt.id, "Cancelled")} className="bg-white border border-rose-200 text-rose-600 px-6 py-2.5 rounded-xl font-bold hover:bg-rose-50 transition w-full">Decline</button>
                       </>
                     )}
-
                     {appt.status === "Upcoming" && (
                       <>
-                        <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-slate-800 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-slate-900 transition shadow-sm w-full">
-                          Complete Visit
-                        </button>
-                        <button onClick={() => requestReschedule(appt)} className="bg-white border border-rose-200 text-rose-600 px-4 py-2.5 rounded-xl font-bold hover:bg-rose-50 transition w-full text-sm">
-                          Emergency Reschedule
-                        </button>
+                        <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-slate-800 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-slate-900 transition shadow-sm w-full">Complete Visit</button>
+                        <button onClick={() => requestReschedule(appt)} className="bg-white border border-rose-200 text-rose-600 px-4 py-2.5 rounded-xl font-bold hover:bg-rose-50 transition w-full text-sm">Emergency Reschedule</button>
                       </>
                     )}
-
                     {isCompleted && (
-                      <button disabled className="bg-slate-100 text-slate-400 px-6 py-2.5 rounded-xl font-bold cursor-not-allowed w-full">
-                        Done
-                      </button>
+                      <button disabled className="bg-slate-100 text-slate-400 px-6 py-2.5 rounded-xl font-bold cursor-not-allowed w-full">Done</button>
                     )}
                   </div>
                 </div>
@@ -251,8 +231,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
       {/* SCHEDULE MODAL */}
       {showScheduleModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
             <h3 className="text-2xl font-serif text-slate-800 mb-4">Manage Availability</h3>
             
             <div className="mb-5">
@@ -290,7 +270,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
               </div>
             </div>
 
-            <div className="mb-8">
+            <div className="mb-5">
               <label className="block text-sm font-bold text-slate-700 mb-2">Slot Duration</label>
               <select value={schedule.slotDuration} onChange={(e) => setSchedule({...schedule, slotDuration: Number(e.target.value)})} className="w-full border border-slate-300 p-2.5 rounded-xl bg-white outline-none focus:border-brand">
                 <option value={15}>15 Minutes</option>
@@ -298,6 +278,46 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 <option value={45}>45 Minutes</option>
                 <option value={60}>60 Minutes</option>
               </select>
+            </div>
+
+            {/* --- NEW: BLOCK DATES UI --- */}
+            <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+              <label className="block text-sm font-bold text-slate-700 mb-2">Block a Date (Mark as Full)</label>
+              <div className="flex gap-2 mb-3">
+                <input 
+                  type="date" 
+                  value={dateToBlock} 
+                  onChange={(e) => setDateToBlock(e.target.value)} 
+                  className="flex-1 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-brand text-sm" 
+                />
+                <button 
+                  onClick={() => {
+                    if (dateToBlock && !schedule.blockedDates.includes(dateToBlock)) {
+                      setSchedule({ ...schedule, blockedDates: [...schedule.blockedDates, dateToBlock] });
+                      setDateToBlock("");
+                    }
+                  }}
+                  className="bg-slate-800 text-white px-4 rounded-xl font-bold hover:bg-slate-900 text-sm"
+                >
+                  Block
+                </button>
+              </div>
+              
+              {schedule.blockedDates.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {schedule.blockedDates.map(date => (
+                    <span key={date} className="bg-rose-100 text-rose-700 border border-rose-200 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-2">
+                      {date}
+                      <button 
+                        onClick={() => setSchedule({ ...schedule, blockedDates: schedule.blockedDates.filter(d => d !== date) })}
+                        className="hover:text-rose-900"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3">
