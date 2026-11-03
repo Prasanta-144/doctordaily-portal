@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
 import { db } from "./firebase";
-import { getFunctions, httpsCallable } from "firebase/functions";
 
 export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [appointments, setAppointments] = useState([]);
@@ -34,13 +33,11 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         const apptQuery = query(appointmentsRef, where("doctorId", "==", doctorId));
         const apptSnapshot = await getDocs(apptQuery);
 
-        // Fetch Pending, Upcoming, and Completed
         const appts = apptSnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         })).filter(a => ["Pending", "Upcoming", "Completed"].includes(a.status));
 
-        // Sort so Pending is always at the top
         appts.sort((a, b) => {
             if (a.status === "Pending" && b.status !== "Pending") return -1;
             if (a.status !== "Pending" && b.status === "Pending") return 1;
@@ -67,39 +64,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     }
   };
 
-  // --- NEW: Process Refund ---
-  const processRefund = async (appt) => {
-    if (!window.confirm(`Are you sure you want to refund ₹${appt.consultationFee || 500} to ${appt.patient}?`)) return;
-
-    try {
-      const functions = getFunctions();
-      const refundPayment = httpsCallable(functions, 'refundPayment');
-      
-      // Call the Cloud Function
-      await refundPayment({ 
-        paymentId: appt.razorpayPaymentId, 
-        amount: appt.consultationFee || 500 
-      });
-
-      // Update Firestore to mark as cancelled and refunded
-      await updateDoc(doc(db, "appointments", appt.id), { 
-        status: "Cancelled", 
-        paymentStatus: "Refunded" 
-      });
-
-      // Remove from doctor's active queue
-      setAppointments(prev => prev.filter(a => a.id !== appt.id));
-      alert("Refund processed successfully.");
-
-    } catch (error) {
-      console.error("Refund failed:", error);
-      alert("Failed to process refund: " + error.message);
-    }
-  };
-
-  // --- NEW: Request Reschedule ---
   const requestReschedule = async (appt) => {
-    if (!window.confirm(`Request ${appt.patient} to choose a new date?`)) return;
+    if (!window.confirm(`Request ${appt.patient} to choose a new date or get a refund?`)) return;
     try {
       await updateDoc(doc(db, "appointments", appt.id), { 
         status: "Pending",
@@ -123,7 +89,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     <div className="min-h-screen bg-[#FAFAFC] p-6">
       <div className="max-w-4xl mx-auto">
         
-        {/* HEADER SECTION */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-extrabold text-brand tracking-tight">Doctor Dashboard</h1>
@@ -131,14 +96,9 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             <p className="text-xs text-slate-400 mt-1">Logged in as: {doctorPhone}</p>
           </div>
           
-          {/* Navigation Buttons */}
           <div className="flex items-center gap-6">
-            <a href="/" className="text-sm font-bold text-slate-500 hover:text-brand transition">
-              Back to Homepage
-            </a>
-            <button onClick={onLogout} className="text-sm font-bold text-red-600 hover:text-red-700 transition border-l border-slate-300 pl-6">
-              Sign Out
-            </button>
+            <a href="/" className="text-sm font-bold text-slate-500 hover:text-brand transition">Back to Homepage</a>
+            <button onClick={onLogout} className="text-sm font-bold text-red-600 hover:text-red-700 transition border-l border-slate-300 pl-6">Sign Out</button>
           </div>
         </div>
 
@@ -168,12 +128,11 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
               const isPending = appt.status === "Pending";
               const isCompleted = appt.status === "Completed";
               
-              // --- LOGIC FOR PAYMENT BADGE ---
               const isOnlinePaid = appt.paymentMethod === "Online" && appt.paymentStatus === "Paid";
               const isPayAtClinic = appt.paymentMethod === "Pay at Clinic";
               
               let badgeText = "⏳ Payment Pending";
-              let badgeStyle = "bg-red-50 text-red-700 border-red-200"; // Default fallback
+              let badgeStyle = "bg-red-50 text-red-700 border-red-200";
 
               if (isOnlinePaid) {
                 badgeText = "💳 Paid";
@@ -182,7 +141,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 badgeText = "💵 To be paid at clinic";
                 badgeStyle = "bg-orange-50 text-orange-700 border-orange-200";
               }
-              // -----------------------------------
 
               return (
                 <div key={appt.id} className={`p-6 rounded-2xl shadow-sm border flex justify-between items-center transition ${
@@ -194,9 +152,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                     <div className="flex items-center gap-3 mb-1">
                       <h3 className="text-lg font-bold text-slate-800">{appt.patient}</h3>
                       
-                      {/* Status Badges */}
-                      {isPending && <span className="bg-amber-200 text-amber-800 text-xs px-2.5 py-1 rounded-full font-bold">Pending Approval</span>}
-                      {appt.rescheduleRequested && <span className="bg-red-200 text-red-800 text-xs px-2.5 py-1 rounded-full font-bold">Reschedule Requested</span>}
+                      {isPending && !appt.rescheduleRequested && <span className="bg-amber-200 text-amber-800 text-xs px-2.5 py-1 rounded-full font-bold">Pending Approval</span>}
+                      {appt.rescheduleRequested && <span className="bg-red-500 text-white text-xs px-2.5 py-1 rounded-full font-bold">⚠️ Awaiting Patient Action</span>}
                       {isCompleted && <span className="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-1 rounded-full font-bold">Completed</span>}
                     </div>
                     
@@ -213,17 +170,14 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                       </div>
                     )}
 
-                    {/* Payment Badge */}
                     <div className="mt-3 flex items-center gap-2">
                       <span className={`text-xs px-3 py-1 rounded-full font-bold border ${badgeStyle}`}>
                         {badgeText}
                       </span>
                     </div>
-                    
                   </div>
                   
                   <div className="flex-shrink-0 flex gap-2">
-                    {/* PENDING ACTIONS */}
                     {isPending && !appt.rescheduleRequested && (
                       <>
                         <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-brand text-white px-5 py-2.5 rounded-xl font-bold hover:bg-opacity-90 transition shadow-sm">
@@ -235,26 +189,17 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                       </>
                     )}
 
-                    {/* UPCOMING ACTIONS */}
                     {appt.status === "Upcoming" && (
                       <div className="flex gap-2">
                         <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-100 transition">
                           Complete
                         </button>
-                        
-                        <button onClick={() => requestReschedule(appt)} className="bg-amber-50 text-amber-700 border border-amber-200 px-4 py-2.5 rounded-xl font-bold hover:bg-amber-100 transition">
-                          Reschedule
+                        <button onClick={() => requestReschedule(appt)} className="bg-red-50 text-red-700 border border-red-200 px-4 py-2.5 rounded-xl font-bold hover:bg-red-100 transition">
+                          Emergency Reschedule
                         </button>
-
-                        {isOnlinePaid && (
-                          <button onClick={() => processRefund(appt)} className="bg-red-50 text-red-700 border border-red-200 px-4 py-2.5 rounded-xl font-bold hover:bg-red-100 transition">
-                            Refund
-                          </button>
-                        )}
                       </div>
                     )}
 
-                    {/* COMPLETED ACTIONS */}
                     {isCompleted && (
                       <button disabled className="bg-slate-100 text-slate-400 border border-slate-200 px-5 py-2.5 rounded-xl font-bold cursor-not-allowed">
                         Done
