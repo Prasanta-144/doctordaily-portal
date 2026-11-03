@@ -73,7 +73,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
       });
       
       setAppointments(prev => prev.map(a => a.id === appt.id ? { ...a, status: "Pending", rescheduleRequested: true } : a));
-      alert("Reschedule request sent to patient.");
     } catch (error) {
       alert("Error updating: " + error.message);
     }
@@ -86,44 +85,49 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const hasCompleted = appointments.some(a => a.status === "Completed");
 
   return (
-    <div className="min-h-screen bg-[#FAFAFC] p-6">
+    <div className="min-h-screen bg-[#FAFAFC] p-6 font-sans">
       <div className="max-w-4xl mx-auto">
         
-        <div className="flex justify-between items-center mb-8">
+        {/* HEADER SECTION */}
+        <div className="flex justify-between items-center mb-10">
           <div>
-            <h1 className="text-3xl font-extrabold text-brand tracking-tight">Doctor Dashboard</h1>
-            <p className="text-slate-600 mt-1">Welcome back, {doctorName || "Loading..."}</p>
-            <p className="text-xs text-slate-400 mt-1">Logged in as: {doctorPhone}</p>
+            <h1 className="text-4xl font-serif text-brand tracking-tight">Doctor Dashboard</h1>
+            <p className="text-slate-600 mt-2 font-medium">Welcome back, {doctorName || "Loading..."}</p>
+            <p className="text-sm text-slate-400 mt-1">Logged in as: {doctorPhone}</p>
           </div>
           
           <div className="flex items-center gap-6">
-            <a href="/" className="text-sm font-bold text-slate-500 hover:text-brand transition">Back to Homepage</a>
-            <button onClick={onLogout} className="text-sm font-bold text-red-600 hover:text-red-700 transition border-l border-slate-300 pl-6">Sign Out</button>
+            <a href="/" className="text-sm font-semibold text-slate-500 hover:text-brand transition">
+              Back to Homepage
+            </a>
+            <button onClick={onLogout} className="text-sm font-semibold text-rose-500 hover:text-rose-600 transition border-l border-slate-200 pl-6">
+              Sign Out
+            </button>
           </div>
         </div>
 
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-slate-800">Your Queue</h2>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-serif text-slate-800">Your Queue</h2>
           {hasCompleted && (
-            <button onClick={clearCompleted} className="text-sm font-bold text-slate-500 hover:text-brand transition">
-              Clear Completed List
+            <button onClick={clearCompleted} className="text-sm font-semibold text-slate-500 hover:text-brand transition bg-slate-100 px-4 py-2 rounded-full">
+              Clear Completed
             </button>
           )}
         </div>
         
         {loading ? (
-          <p className="text-slate-500">Loading appointments...</p>
+          <p className="text-slate-500 font-medium">Loading appointments...</p>
         ) : error ? (
-          <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-200">
-            <p>{error}</p>
-            <button onClick={onLogout} className="mt-2 bg-red-600 text-white px-4 py-2 rounded font-bold">Go Back</button>
+          <div className="bg-rose-50 text-rose-600 p-5 rounded-2xl border border-rose-100">
+            <p className="font-medium">{error}</p>
+            <button onClick={onLogout} className="mt-3 bg-rose-600 text-white px-5 py-2 rounded-xl font-bold">Go Back</button>
           </div>
         ) : appointments.length === 0 ? (
-          <div className="bg-white p-8 text-center rounded-2xl shadow-sm border border-slate-200">
-            <p className="text-slate-500">No appointments in the queue right now.</p>
+          <div className="bg-white p-10 text-center rounded-3xl shadow-sm border border-slate-100">
+            <p className="text-slate-400 font-medium">No appointments in the queue right now.</p>
           </div>
         ) : (
-          <div className="grid gap-4">
+          <div className="grid gap-5">
             {appointments.map((appt) => {
               const isPending = appt.status === "Pending";
               const isCompleted = appt.status === "Completed";
@@ -132,7 +136,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
               const isPayAtClinic = appt.paymentMethod === "Pay at Clinic";
               
               let badgeText = "⏳ Payment Pending";
-              let badgeStyle = "bg-red-50 text-red-700 border-red-200";
+              let badgeStyle = "bg-slate-100 text-slate-600 border-slate-200";
 
               if (isOnlinePaid) {
                 badgeText = "💳 Paid";
@@ -143,65 +147,65 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
               }
 
               return (
-                <div key={appt.id} className={`p-6 rounded-2xl shadow-sm border flex justify-between items-center transition ${
-                  isPending ? 'bg-amber-50 border-amber-200' : 
-                  isCompleted ? 'bg-slate-50 border-slate-200 opacity-80' : 
-                  'bg-white border-slate-200'
+                <div key={appt.id} className={`p-6 rounded-3xl shadow-sm border flex justify-between items-center transition ${
+                  isPending ? 'bg-amber-50/50 border-amber-100' : 
+                  isCompleted ? 'bg-slate-50 border-slate-100 opacity-75' : 
+                  'bg-white border-slate-100'
                 }`}>
                   <div className="pr-4">
-                    <div className="flex items-center gap-3 mb-1">
-                      <h3 className="text-lg font-bold text-slate-800">{appt.patient}</h3>
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="text-xl font-bold text-slate-800">{appt.patient}</h3>
                       
-                      {isPending && !appt.rescheduleRequested && <span className="bg-amber-200 text-amber-800 text-xs px-2.5 py-1 rounded-full font-bold">Pending Approval</span>}
-                      {appt.rescheduleRequested && <span className="bg-red-500 text-white text-xs px-2.5 py-1 rounded-full font-bold">⚠️ Awaiting Patient Action</span>}
-                      {isCompleted && <span className="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-1 rounded-full font-bold">Completed</span>}
+                      {isPending && !appt.rescheduleRequested && <span className="bg-amber-100 text-amber-700 border border-amber-200 text-xs px-3 py-1 rounded-full font-bold">Pending Approval</span>}
+                      {appt.rescheduleRequested && <span className="bg-rose-100 text-rose-700 border border-rose-200 text-xs px-3 py-1 rounded-full font-bold">⚠️ Awaiting Patient Action</span>}
+                      {isCompleted && <span className="bg-slate-200 text-slate-700 text-xs px-3 py-1 rounded-full font-bold">Completed</span>}
                     </div>
                     
-                    <p className="text-sm text-slate-500">Phone: {appt.phone || "Not provided"}</p>
-                    <p className="text-sm text-brand font-semibold mt-2">
+                    <p className="text-sm text-slate-500 font-medium">Phone: {appt.phone || "Not provided"}</p>
+                    <p className="text-sm text-brand font-semibold mt-2 bg-brand/5 inline-block px-3 py-1 rounded-lg">
                       {appt.dayLabel} at {appt.slot} <span className="text-slate-300 mx-1">|</span> Token #{appt.token}
                     </p>
                     
                     {appt.reason && (
-                      <div className="mt-3 bg-white/60 border border-slate-200 p-3 rounded-xl">
-                        <p className="text-sm text-slate-700">
-                          <span className="font-semibold text-slate-900">Reason:</span> {appt.reason}
+                      <div className="mt-3 bg-slate-50 border border-slate-100 p-3 rounded-xl">
+                        <p className="text-sm text-slate-600">
+                          <span className="font-semibold text-slate-800">Reason:</span> {appt.reason}
                         </p>
                       </div>
                     )}
 
-                    <div className="mt-3 flex items-center gap-2">
-                      <span className={`text-xs px-3 py-1 rounded-full font-bold border ${badgeStyle}`}>
+                    <div className="mt-4 flex items-center gap-2">
+                      <span className={`text-xs px-3 py-1.5 rounded-full font-bold border ${badgeStyle}`}>
                         {badgeText}
                       </span>
                     </div>
                   </div>
                   
-                  <div className="flex-shrink-0 flex gap-2">
+                  <div className="flex-shrink-0 flex flex-col gap-2">
                     {isPending && !appt.rescheduleRequested && (
                       <>
-                        <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-brand text-white px-5 py-2.5 rounded-xl font-bold hover:bg-opacity-90 transition shadow-sm">
+                        <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-brand text-white px-6 py-2.5 rounded-xl font-bold hover:bg-opacity-90 transition shadow-sm w-full">
                           Accept
                         </button>
-                        <button onClick={() => updateStatus(appt.id, "Cancelled")} className="bg-white border border-red-200 text-red-600 px-4 py-2.5 rounded-xl font-bold hover:bg-red-50 transition">
+                        <button onClick={() => updateStatus(appt.id, "Cancelled")} className="bg-white border border-rose-200 text-rose-600 px-6 py-2.5 rounded-xl font-bold hover:bg-rose-50 transition w-full">
                           Decline
                         </button>
                       </>
                     )}
 
                     {appt.status === "Upcoming" && (
-                      <div className="flex gap-2">
-                        <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-100 transition">
-                          Complete
+                      <>
+                        <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-slate-800 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-slate-900 transition shadow-sm w-full">
+                          Complete Visit
                         </button>
-                        <button onClick={() => requestReschedule(appt)} className="bg-red-50 text-red-700 border border-red-200 px-4 py-2.5 rounded-xl font-bold hover:bg-red-100 transition">
+                        <button onClick={() => requestReschedule(appt)} className="bg-white border border-rose-200 text-rose-600 px-4 py-2.5 rounded-xl font-bold hover:bg-rose-50 transition w-full text-sm">
                           Emergency Reschedule
                         </button>
-                      </div>
+                      </>
                     )}
 
                     {isCompleted && (
-                      <button disabled className="bg-slate-100 text-slate-400 border border-slate-200 px-5 py-2.5 rounded-xl font-bold cursor-not-allowed">
+                      <button disabled className="bg-slate-100 text-slate-400 px-6 py-2.5 rounded-xl font-bold cursor-not-allowed w-full">
                         Done
                       </button>
                     )}
