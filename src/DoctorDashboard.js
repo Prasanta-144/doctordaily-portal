@@ -5,8 +5,18 @@ import { db } from "./firebase";
 export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [appointments, setAppointments] = useState([]);
   const [doctorName, setDoctorName] = useState('');
+  const [doctorId, setDoctorId] = useState(null); // Store ID for saving schedule
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // --- NEW: Schedule State ---
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [schedule, setSchedule] = useState({
+    workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    startTime: "10:00",
+    endTime: "17:00",
+    slotDuration: 30
+  });
 
   useEffect(() => {
     const fetchAppointments = async () => {
@@ -26,11 +36,16 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         }
 
         const doctorDoc = doctorSnapshot.docs[0];
-        const doctorId = doctorDoc.id;
+        setDoctorId(doctorDoc.id);
         setDoctorName(doctorDoc.data().name);
+        
+        // Load their existing schedule if they have one
+        if (doctorDoc.data().schedule) {
+          setSchedule(doctorDoc.data().schedule);
+        }
 
         const appointmentsRef = collection(db, "appointments");
-        const apptQuery = query(appointmentsRef, where("doctorId", "==", doctorId));
+        const apptQuery = query(appointmentsRef, where("doctorId", "==", doctorDoc.id));
         const apptSnapshot = await getDocs(apptQuery);
 
         const appts = apptSnapshot.docs.map(doc => ({
@@ -82,6 +97,18 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     setAppointments(prev => prev.filter(a => a.status !== "Completed"));
   };
 
+  // --- NEW: Save Schedule to Firestore ---
+  const saveSchedule = async () => {
+    if (!doctorId) return;
+    try {
+      await updateDoc(doc(db, "doctors", doctorId), { schedule: schedule });
+      alert("Schedule updated successfully! Patients will now only see these slots.");
+      setShowScheduleModal(false);
+    } catch (error) {
+      alert("Error saving schedule: " + error.message);
+    }
+  };
+
   const hasCompleted = appointments.some(a => a.status === "Completed");
 
   return (
@@ -97,9 +124,14 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           </div>
           
           <div className="flex items-center gap-6">
-            <a href="/" className="text-sm font-semibold text-slate-500 hover:text-brand transition">
-              Back to Homepage
-            </a>
+            {/* NEW: Manage Schedule Button */}
+            <button 
+              onClick={() => setShowScheduleModal(true)} 
+              className="text-sm font-bold bg-white border border-brand text-brand px-4 py-2 rounded-xl hover:bg-brand hover:text-white transition shadow-sm"
+            >
+              Manage Schedule
+            </button>
+            <a href="/" className="text-sm font-semibold text-slate-500 hover:text-brand transition">Homepage</a>
             <button onClick={onLogout} className="text-sm font-semibold text-rose-500 hover:text-rose-600 transition border-l border-slate-200 pl-6">
               Sign Out
             </button>
@@ -216,6 +248,65 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           </div>
         )}
       </div>
+
+      {/* SCHEDULE MODAL */}
+      {showScheduleModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full">
+            <h3 className="text-2xl font-serif text-slate-800 mb-4">Manage Availability</h3>
+            
+            <div className="mb-5">
+              <label className="block text-sm font-bold text-slate-700 mb-2">Working Days</label>
+              <div className="flex flex-wrap gap-2">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
+                  <button
+                    key={day}
+                    onClick={() => {
+                      const newDays = schedule.workingDays.includes(day)
+                        ? schedule.workingDays.filter(d => d !== day)
+                        : [...schedule.workingDays, day];
+                      setSchedule({ ...schedule, workingDays: newDays });
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-sm font-bold border transition ${
+                      schedule.workingDays.includes(day) 
+                        ? "bg-brand text-white border-brand shadow-sm" 
+                        : "bg-white text-slate-500 border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    {day}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-4 mb-5">
+              <div className="flex-1">
+                <label className="block text-sm font-bold text-slate-700 mb-2">Start Time</label>
+                <input type="time" value={schedule.startTime} onChange={(e) => setSchedule({...schedule, startTime: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-brand" />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-bold text-slate-700 mb-2">End Time</label>
+                <input type="time" value={schedule.endTime} onChange={(e) => setSchedule({...schedule, endTime: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-brand" />
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <label className="block text-sm font-bold text-slate-700 mb-2">Slot Duration</label>
+              <select value={schedule.slotDuration} onChange={(e) => setSchedule({...schedule, slotDuration: Number(e.target.value)})} className="w-full border border-slate-300 p-2.5 rounded-xl bg-white outline-none focus:border-brand">
+                <option value={15}>15 Minutes</option>
+                <option value={30}>30 Minutes</option>
+                <option value={45}>45 Minutes</option>
+                <option value={60}>60 Minutes</option>
+              </select>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowScheduleModal(false)} className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
+              <button onClick={saveSchedule} className="flex-1 bg-brand text-white py-3 rounded-xl font-bold hover:bg-opacity-90 shadow-sm transition">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
