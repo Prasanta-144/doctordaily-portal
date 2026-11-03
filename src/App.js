@@ -7,12 +7,7 @@ import DoctorLogin from './DoctorLogin';
 import VerifyTicket from './VerifyTicket';
 
 export default function App() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const verifyId = urlParams.get('verify');
-  
-  if (window.location.pathname === '/verify' || verifyId) {
-    return <VerifyTicket appointmentId={verifyId} />;
-  }
+  // 1. ALL HOOKS MUST BE DECLARED AT THE VERY TOP
   const [step, setStep] = useState(1);
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -105,8 +100,15 @@ export default function App() {
 
   const handleInput = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  // --- Routing logic ---
-    if (view === 'dashboard') {
+  // --- 2. ROUTING LOGIC (Must be placed after all hooks) ---
+  const urlParams = new URLSearchParams(window.location.search);
+  const verifyId = urlParams.get('verify');
+  
+  if (window.location.pathname === '/verify' || verifyId) {
+    return <VerifyTicket appointmentId={verifyId} />;
+  }
+
+  if (view === 'dashboard') {
     return <DoctorDashboard doctorPhone={loggedInPhone} onLogout={() => setView('landing')} />;
   }
 
@@ -116,7 +118,8 @@ export default function App() {
       setView('dashboard');
     }} />;
   }
-  // --- Landing Page ---
+
+  // --- 3. LANDING PAGE ---
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
       
