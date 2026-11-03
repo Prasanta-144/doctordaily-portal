@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
 import { db } from "./firebase";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [appointments, setAppointments] = useState([]);
@@ -66,6 +67,52 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     }
   };
 
+  // --- NEW: Process Refund ---
+  const processRefund = async (appt) => {
+    if (!window.confirm(`Are you sure you want to refund ₹${appt.consultationFee || 500} to ${appt.patient}?`)) return;
+
+    try {
+      const functions = getFunctions();
+      const refundPayment = httpsCallable(functions, 'refundPayment');
+      
+      // Call the Cloud Function
+      await refundPayment({ 
+        paymentId: appt.razorpayPaymentId, 
+        amount: appt.consultationFee || 500 
+      });
+
+      // Update Firestore to mark as cancelled and refunded
+      await updateDoc(doc(db, "appointments", appt.id), { 
+        status: "Cancelled", 
+        paymentStatus: "Refunded" 
+      });
+
+      // Remove from doctor's active queue
+      setAppointments(prev => prev.filter(a => a.id !== appt.id));
+      alert("Refund processed successfully.");
+
+    } catch (error) {
+      console.error("Refund failed:", error);
+      alert("Failed to process refund: " + error.message);
+    }
+  };
+
+  // --- NEW: Request Reschedule ---
+  const requestReschedule = async (appt) => {
+    if (!window.confirm(`Request ${appt.patient} to choose a new date?`)) return;
+    try {
+      await updateDoc(doc(db, "appointments", appt.id), { 
+        status: "Pending",
+        rescheduleRequested: true 
+      });
+      
+      setAppointments(prev => prev.map(a => a.id === appt.id ? { ...a, status: "Pending", rescheduleRequested: true } : a));
+      alert("Reschedule request sent to patient.");
+    } catch (error) {
+      alert("Error updating: " + error.message);
+    }
+  };
+
   const clearCompleted = () => {
     setAppointments(prev => prev.filter(a => a.status !== "Completed"));
   };
@@ -84,7 +131,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             <p className="text-xs text-slate-400 mt-1">Logged in as: {doctorPhone}</p>
           </div>
           
-          {/* NEW: Navigation Buttons */}
+          {/* Navigation Buttons */}
           <div className="flex items-center gap-6">
             <a href="/" className="text-sm font-bold text-slate-500 hover:text-brand transition">
               Back to Homepage
@@ -121,7 +168,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
               const isPending = appt.status === "Pending";
               const isCompleted = appt.status === "Completed";
               
-              // --- NEW LOGIC FOR PAYMENT BADGE ---
+              // --- LOGIC FOR PAYMENT BADGE ---
               const isOnlinePaid = appt.paymentMethod === "Online" && appt.paymentStatus === "Paid";
               const isPayAtClinic = appt.paymentMethod === "Pay at Clinic";
               
@@ -149,6 +196,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                       
                       {/* Status Badges */}
                       {isPending && <span className="bg-amber-200 text-amber-800 text-xs px-2.5 py-1 rounded-full font-bold">Pending Approval</span>}
+                      {appt.rescheduleRequested && <span className="bg-red-200 text-red-800 text-xs px-2.5 py-1 rounded-full font-bold">Reschedule Requested</span>}
                       {isCompleted && <span className="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-1 rounded-full font-bold">Completed</span>}
                     </div>
                     
@@ -176,7 +224,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                   
                   <div className="flex-shrink-0 flex gap-2">
                     {/* PENDING ACTIONS */}
-                    {isPending && (
+                    {isPending && !appt.rescheduleRequested && (
                       <>
                         <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-brand text-white px-5 py-2.5 rounded-xl font-bold hover:bg-opacity-90 transition shadow-sm">
                           Accept
@@ -189,9 +237,21 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
                     {/* UPCOMING ACTIONS */}
                     {appt.status === "Upcoming" && (
-                      <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-100 transition">
-                        Complete
-                      </button>
+                      <div className="flex gap-2">
+                        <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-100 transition">
+                          Complete
+                        </button>
+                        
+                        <button onClick={() => requestReschedule(appt)} className="bg-amber-50 text-amber-700 border border-amber-200 px-4 py-2.5 rounded-xl font-bold hover:bg-amber-100 transition">
+                          Reschedule
+                        </button>
+
+                        {isOnlinePaid && (
+                          <button onClick={() => processRefund(appt)} className="bg-red-50 text-red-700 border border-red-200 px-4 py-2.5 rounded-xl font-bold hover:bg-red-100 transition">
+                            Refund
+                          </button>
+                        )}
+                      </div>
                     )}
 
                     {/* COMPLETED ACTIONS */}
