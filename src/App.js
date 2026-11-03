@@ -4,8 +4,15 @@ import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import DoctorDashboard from './DoctorDashboard';
 import DoctorLogin from './DoctorLogin';
+import VerifyTicket from './VerifyTicket';
 
 export default function App() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const verifyId = urlParams.get('verify');
+  
+  if (window.location.pathname === '/verify' || verifyId) {
+    return <VerifyTicket appointmentId={verifyId} />;
+  }
   const [step, setStep] = useState(1);
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
