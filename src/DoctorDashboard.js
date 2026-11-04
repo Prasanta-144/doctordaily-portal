@@ -5,11 +5,16 @@ import { db } from "./firebase";
 export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [appointments, setAppointments] = useState([]);
   const [doctorName, setDoctorName] = useState('');
+  const [doctorFee, setDoctorFee] = useState(0);
   const [doctorId, setDoctorId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // --- Schedule State ---
+  // Navigation & View States
+  const [activeTab, setActiveTab] = useState('queue'); // 'queue' | 'earnings'
+  const [earningsView, setEarningsView] = useState('daily'); // 'daily' | 'monthly'
+
+  // Schedule State
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [dateToBlock, setDateToBlock] = useState("");
   const [schedule, setSchedule] = useState({
@@ -17,7 +22,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     startTime: "10:00",
     endTime: "17:00",
     slotDuration: 30,
-    blockedDates: [] // <-- NEW
+    blockedDates: []
   });
 
   useEffect(() => {
@@ -40,11 +45,12 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         const doctorDoc = doctorSnapshot.docs[0];
         setDoctorId(doctorDoc.id);
         setDoctorName(doctorDoc.data().name);
+        setDoctorFee(doctorDoc.data().consultationFee || 500); // Fallback to 500
         
         if (doctorDoc.data().schedule) {
           setSchedule({
             ...doctorDoc.data().schedule,
-            blockedDates: doctorDoc.data().schedule.blockedDates || [] // Fallback for older docs
+            blockedDates: doctorDoc.data().schedule.blockedDates || []
           });
         }
 
@@ -111,13 +117,44 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     }
   };
 
+  // --- EARNINGS LOGIC ---
+  const calculateEarnings = () => {
+    // Only count appointments that are paid or completed
+    const validAppts = appointments.filter(a => a.paymentStatus === "Paid" || a.status === "Completed");
+    
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+
+    let filteredAppts = [];
+    if (earningsView === 'daily') {
+      // For daily, just show "Today" appointments (simplification for MVP)
+      filteredAppts = validAppts.filter(a => a.dayLabel === "Today" || a.dayLabel === new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }));
+    } else {
+      // For monthly, we would ideally use the createdAt timestamp
+      filteredAppts = validAppts.filter(a => {
+        if (a.createdAt) {
+          const date = a.createdAt.toDate();
+          return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+        }
+        // Fallback for older appointments without createdAt
+        return true; 
+      });
+    }
+
+    const total = filteredAppts.reduce((sum, a) => sum + (a.consultationFee || doctorFee), 0);
+    return { total, count: filteredAppts.length, appointments: filteredAppts };
+  };
+
+  const { total: totalEarnings, count: patientCount, appointments: earningsList } = calculateEarnings();
   const hasCompleted = appointments.some(a => a.status === "Completed");
 
   return (
     <div className="min-h-screen bg-[#FAFAFC] p-6 font-sans">
       <div className="max-w-4xl mx-auto">
         
-        <div className="flex justify-between items-center mb-10">
+        {/* HEADER SECTION */}
+        <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-4xl font-serif text-brand tracking-tight">Doctor Dashboard</h1>
             <p className="text-slate-600 mt-2 font-medium">Welcome back, {doctorName || "Loading..."}</p>
@@ -133,108 +170,171 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           </div>
         </div>
 
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-serif text-slate-800">Your Queue</h2>
-          {hasCompleted && (
-            <button onClick={clearCompleted} className="text-sm font-semibold text-slate-500 hover:text-brand transition bg-slate-100 px-4 py-2 rounded-full">
-              Clear Completed
-            </button>
-          )}
+        {/* TABS */}
+        <div className="flex gap-4 mb-6 border-b border-slate-200 pb-2">
+          <button 
+            onClick={() => setActiveTab('queue')} 
+            className={`text-lg font-bold pb-2 px-2 transition ${activeTab === 'queue' ? 'text-brand border-b-2 border-brand' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            Appointment Queue
+          </button>
+          <button 
+            onClick={() => setActiveTab('earnings')} 
+            className={`text-lg font-bold pb-2 px-2 transition ${activeTab === 'earnings' ? 'text-brand border-b-2 border-brand' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            Earnings
+          </button>
         </div>
-        
-        {loading ? (
-          <p className="text-slate-500 font-medium">Loading appointments...</p>
-        ) : error ? (
-          <div className="bg-rose-50 text-rose-600 p-5 rounded-2xl border border-rose-100">
-            <p className="font-medium">{error}</p>
-            <button onClick={onLogout} className="mt-3 bg-rose-600 text-white px-5 py-2 rounded-xl font-bold">Go Back</button>
-          </div>
-        ) : appointments.length === 0 ? (
-          <div className="bg-white p-10 text-center rounded-3xl shadow-sm border border-slate-100">
-            <p className="text-slate-400 font-medium">No appointments in the queue right now.</p>
-          </div>
-        ) : (
-          <div className="grid gap-5">
-            {appointments.map((appt) => {
-              const isPending = appt.status === "Pending";
-              const isCompleted = appt.status === "Completed";
-              
-              const isOnlinePaid = appt.paymentMethod === "Online" && appt.paymentStatus === "Paid";
-              const isPayAtClinic = appt.paymentMethod === "Pay at Clinic";
-              
-              let badgeText = "⏳ Payment Pending";
-              let badgeStyle = "bg-slate-100 text-slate-600 border-slate-200";
 
-              if (isOnlinePaid) {
-                badgeText = "💳 Paid";
-                badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200";
-              } else if (isPayAtClinic) {
-                badgeText = "💵 To be paid at clinic";
-                badgeStyle = "bg-orange-50 text-orange-700 border-orange-200";
-              }
-
-              return (
-                <div key={appt.id} className={`p-6 rounded-3xl shadow-sm border flex justify-between items-center transition ${
-                  isPending ? 'bg-amber-50/50 border-amber-100' : 
-                  isCompleted ? 'bg-slate-50 border-slate-100 opacity-75' : 
-                  'bg-white border-slate-100'
-                }`}>
-                  <div className="pr-4">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-bold text-slate-800">{appt.patient}</h3>
-                      {isPending && !appt.rescheduleRequested && <span className="bg-amber-100 text-amber-700 border border-amber-200 text-xs px-3 py-1 rounded-full font-bold">Pending Approval</span>}
-                      {appt.rescheduleRequested && <span className="bg-rose-100 text-rose-700 border border-rose-200 text-xs px-3 py-1 rounded-full font-bold">⚠️ Awaiting Patient Action</span>}
-                      {isCompleted && <span className="bg-slate-200 text-slate-700 text-xs px-3 py-1 rounded-full font-bold">Completed</span>}
-                    </div>
-                    
-                    <p className="text-sm text-slate-500 font-medium">Phone: {appt.phone || "Not provided"}</p>
-                    <p className="text-sm text-brand font-semibold mt-2 bg-brand/5 inline-block px-3 py-1 rounded-lg">
-                      {appt.dayLabel} at {appt.slot} <span className="text-slate-300 mx-1">|</span> Token #{appt.token}
-                    </p>
-                    
-                    {appt.reason && (
-                      <div className="mt-3 bg-slate-50 border border-slate-100 p-3 rounded-xl">
-                        <p className="text-sm text-slate-600">
-                          <span className="font-semibold text-slate-800">Reason:</span> {appt.reason}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="mt-4 flex items-center gap-2">
-                      <span className={`text-xs px-3 py-1.5 rounded-full font-bold border ${badgeStyle}`}>{badgeText}</span>
-                    </div>
-                  </div>
+        {/* --- QUEUE TAB --- */}
+        {activeTab === 'queue' && (
+          <>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-slate-800">Your Queue</h2>
+              {hasCompleted && (
+                <button onClick={clearCompleted} className="text-sm font-semibold text-slate-500 hover:text-brand transition bg-slate-100 px-4 py-2 rounded-full">
+                  Clear Completed
+                </button>
+              )}
+            </div>
+            
+            {loading ? (
+              <p className="text-slate-500 font-medium">Loading appointments...</p>
+            ) : error ? (
+              <div className="bg-rose-50 text-rose-600 p-5 rounded-2xl border border-rose-100">
+                <p className="font-medium">{error}</p>
+                <button onClick={onLogout} className="mt-3 bg-rose-600 text-white px-5 py-2 rounded-xl font-bold">Go Back</button>
+              </div>
+            ) : appointments.length === 0 ? (
+              <div className="bg-white p-10 text-center rounded-3xl shadow-sm border border-slate-100">
+                <p className="text-slate-400 font-medium">No appointments in the queue right now.</p>
+              </div>
+            ) : (
+              <div className="grid gap-5">
+                {appointments.map((appt) => {
+                  // ... (Keep the exact same appointment card rendering logic from before)
+                  const isPending = appt.status === "Pending";
+                  const isCompleted = appt.status === "Completed";
+                  const isOnlinePaid = appt.paymentMethod === "Online" && appt.paymentStatus === "Paid";
+                  const isPayAtClinic = appt.paymentMethod === "Pay at Clinic";
                   
-                  <div className="flex-shrink-0 flex flex-col gap-2">
-                    {isPending && !appt.rescheduleRequested && (
-                      <>
-                        <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-brand text-white px-6 py-2.5 rounded-xl font-bold hover:bg-opacity-90 transition shadow-sm w-full">Accept</button>
-                        <button onClick={() => updateStatus(appt.id, "Cancelled")} className="bg-white border border-rose-200 text-rose-600 px-6 py-2.5 rounded-xl font-bold hover:bg-rose-50 transition w-full">Decline</button>
-                      </>
-                    )}
-                    {appt.status === "Upcoming" && (
-                      <>
-                        <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-slate-800 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-slate-900 transition shadow-sm w-full">Complete Visit</button>
-                        <button onClick={() => requestReschedule(appt)} className="bg-white border border-rose-200 text-rose-600 px-4 py-2.5 rounded-xl font-bold hover:bg-rose-50 transition w-full text-sm">Emergency Reschedule</button>
-                      </>
-                    )}
-                    {isCompleted && (
-                      <button disabled className="bg-slate-100 text-slate-400 px-6 py-2.5 rounded-xl font-bold cursor-not-allowed w-full">Done</button>
-                    )}
+                  let badgeText = "⏳ Payment Pending";
+                  let badgeStyle = "bg-slate-100 text-slate-600 border-slate-200";
+                  if (isOnlinePaid) { badgeText = "💳 Paid"; badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200"; } 
+                  else if (isPayAtClinic) { badgeText = "💵 To be paid at clinic"; badgeStyle = "bg-orange-50 text-orange-700 border-orange-200"; }
+
+                  return (
+                    <div key={appt.id} className={`p-6 rounded-3xl shadow-sm border flex justify-between items-center transition ${isPending ? 'bg-amber-50/50 border-amber-100' : isCompleted ? 'bg-slate-50 border-slate-100 opacity-75' : 'bg-white border-slate-100'}`}>
+                      <div className="pr-4">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="text-xl font-bold text-slate-800">{appt.patient}</h3>
+                          {isPending && !appt.rescheduleRequested && <span className="bg-amber-100 text-amber-700 border border-amber-200 text-xs px-3 py-1 rounded-full font-bold">Pending Approval</span>}
+                          {appt.rescheduleRequested && <span className="bg-rose-100 text-rose-700 border border-rose-200 text-xs px-3 py-1 rounded-full font-bold">⚠️ Awaiting Patient Action</span>}
+                          {isCompleted && <span className="bg-slate-200 text-slate-700 text-xs px-3 py-1 rounded-full font-bold">Completed</span>}
+                        </div>
+                        <p className="text-sm text-slate-500 font-medium">Phone: {appt.phone || "Not provided"}</p>
+                        <p className="text-sm text-brand font-semibold mt-2 bg-brand/5 inline-block px-3 py-1 rounded-lg">
+                          {appt.dayLabel} at {appt.slot} <span className="text-slate-300 mx-1">|</span> Token #{appt.token}
+                        </p>
+                        {appt.reason && (
+                          <div className="mt-3 bg-slate-50 border border-slate-100 p-3 rounded-xl">
+                            <p className="text-sm text-slate-600"><span className="font-semibold text-slate-800">Reason:</span> {appt.reason}</p>
+                          </div>
+                        )}
+                        <div className="mt-4 flex items-center gap-2">
+                          <span className={`text-xs px-3 py-1.5 rounded-full font-bold border ${badgeStyle}`}>{badgeText}</span>
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0 flex flex-col gap-2">
+                        {isPending && !appt.rescheduleRequested && (
+                          <>
+                            <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-brand text-white px-6 py-2.5 rounded-xl font-bold hover:bg-opacity-90 transition shadow-sm w-full">Accept</button>
+                            <button onClick={() => updateStatus(appt.id, "Cancelled")} className="bg-white border border-rose-200 text-rose-600 px-6 py-2.5 rounded-xl font-bold hover:bg-rose-50 transition w-full">Decline</button>
+                          </>
+                        )}
+                        {appt.status === "Upcoming" && (
+                          <>
+                            <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-slate-800 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-slate-900 transition shadow-sm w-full">Complete Visit</button>
+                            <button onClick={() => requestReschedule(appt)} className="bg-white border border-rose-200 text-rose-600 px-4 py-2.5 rounded-xl font-bold hover:bg-rose-50 transition w-full text-sm">Emergency Reschedule</button>
+                          </>
+                        )}
+                        {isCompleted && (
+                          <button disabled className="bg-slate-100 text-slate-400 px-6 py-2.5 rounded-xl font-bold cursor-not-allowed w-full">Done</button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* --- EARNINGS TAB --- */}
+        {activeTab === 'earnings' && (
+          <div className="animate-fade-in">
+            {/* Toggle */}
+            <div className="flex bg-slate-200/50 p-1 rounded-2xl w-max mb-6">
+              <button 
+                onClick={() => setEarningsView('daily')} 
+                className={`px-6 py-2 rounded-xl text-sm font-bold transition ${earningsView === 'daily' ? 'bg-white text-brand shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Daily
+              </button>
+              <button 
+                onClick={() => setEarningsView('monthly')} 
+                className={`px-6 py-2 rounded-xl text-sm font-bold transition ${earningsView === 'monthly' ? 'bg-white text-brand shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Monthly
+              </button>
+            </div>
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              <div className="bg-brand text-white p-8 rounded-3xl shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-6 opacity-10 text-8xl">₹</div>
+                <p className="text-brand-100 font-medium mb-1">Total Earnings ({earningsView})</p>
+                <h3 className="text-5xl font-black tracking-tight">₹{totalEarnings}</h3>
+              </div>
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 relative">
+                <div className="absolute top-0 right-0 p-6 opacity-5 text-8xl">👥</div>
+                <p className="text-slate-500 font-medium mb-1">Patients Seen ({earningsView})</p>
+                <h3 className="text-5xl font-black tracking-tight text-slate-800">{patientCount}</h3>
+              </div>
+            </div>
+
+            {/* Earnings List */}
+            <h3 className="text-xl font-bold text-slate-800 mb-4">Recent Transactions</h3>
+            {earningsList.length === 0 ? (
+              <div className="bg-white p-10 text-center rounded-3xl shadow-sm border border-slate-100">
+                <p className="text-slate-400 font-medium">No earnings recorded for this period yet.</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                {earningsList.map((appt, index) => (
+                  <div key={appt.id} className={`p-5 flex justify-between items-center ${index !== earningsList.length - 1 ? 'border-b border-slate-100' : ''}`}>
+                    <div>
+                      <p className="font-bold text-slate-800">{appt.patient}</p>
+                      <p className="text-sm text-slate-500">{appt.dayLabel} · Token #{appt.token}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-emerald-600">+ ₹{appt.consultationFee || doctorFee}</p>
+                      <p className="text-xs font-bold text-slate-400 uppercase">{appt.paymentStatus === 'Paid' ? 'Online' : 'Cash/Clinic'}</p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* SCHEDULE MODAL */}
+      {/* SCHEDULE MODAL (Keep exactly as it was) */}
       {showScheduleModal && (
+        // ... Paste your existing Schedule Modal code here ...
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
             <h3 className="text-2xl font-serif text-slate-800 mb-4">Manage Availability</h3>
-            
             <div className="mb-5">
               <label className="block text-sm font-bold text-slate-700 mb-2">Working Days</label>
               <div className="flex flex-wrap gap-2">
@@ -258,7 +358,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 ))}
               </div>
             </div>
-
             <div className="flex gap-4 mb-5">
               <div className="flex-1">
                 <label className="block text-sm font-bold text-slate-700 mb-2">Start Time</label>
@@ -269,7 +368,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 <input type="time" value={schedule.endTime} onChange={(e) => setSchedule({...schedule, endTime: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-brand" />
               </div>
             </div>
-
             <div className="mb-5">
               <label className="block text-sm font-bold text-slate-700 mb-2">Slot Duration</label>
               <select value={schedule.slotDuration} onChange={(e) => setSchedule({...schedule, slotDuration: Number(e.target.value)})} className="w-full border border-slate-300 p-2.5 rounded-xl bg-white outline-none focus:border-brand">
@@ -279,47 +377,28 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 <option value={60}>60 Minutes</option>
               </select>
             </div>
-
-            {/* --- NEW: BLOCK DATES UI --- */}
             <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-200">
               <label className="block text-sm font-bold text-slate-700 mb-2">Block a Date (Mark as Full)</label>
               <div className="flex gap-2 mb-3">
-                <input 
-                  type="date" 
-                  value={dateToBlock} 
-                  onChange={(e) => setDateToBlock(e.target.value)} 
-                  className="flex-1 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-brand text-sm" 
-                />
-                <button 
-                  onClick={() => {
+                <input type="date" value={dateToBlock} onChange={(e) => setDateToBlock(e.target.value)} className="flex-1 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-brand text-sm" />
+                <button onClick={() => {
                     if (dateToBlock && !schedule.blockedDates.includes(dateToBlock)) {
                       setSchedule({ ...schedule, blockedDates: [...schedule.blockedDates, dateToBlock] });
                       setDateToBlock("");
                     }
-                  }}
-                  className="bg-slate-800 text-white px-4 rounded-xl font-bold hover:bg-slate-900 text-sm"
-                >
-                  Block
-                </button>
+                  }} className="bg-slate-800 text-white px-4 rounded-xl font-bold hover:bg-slate-900 text-sm">Block</button>
               </div>
-              
               {schedule.blockedDates.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {schedule.blockedDates.map(date => (
                     <span key={date} className="bg-rose-100 text-rose-700 border border-rose-200 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-2">
                       {date}
-                      <button 
-                        onClick={() => setSchedule({ ...schedule, blockedDates: schedule.blockedDates.filter(d => d !== date) })}
-                        className="hover:text-rose-900"
-                      >
-                        ✕
-                      </button>
+                      <button onClick={() => setSchedule({ ...schedule, blockedDates: schedule.blockedDates.filter(d => d !== date) })} className="hover:text-rose-900">✕</button>
                     </span>
                   ))}
                 </div>
               )}
             </div>
-
             <div className="flex gap-3">
               <button onClick={() => setShowScheduleModal(false)} className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
               <button onClick={saveSchedule} className="flex-1 bg-brand text-white py-3 rounded-xl font-bold hover:bg-opacity-90 shadow-sm transition">Save Changes</button>
