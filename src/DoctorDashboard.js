@@ -59,11 +59,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         setDoctorFee(doctorData.consultationFee || 500);
         
         // --- CALCULATE SUBSCRIPTION STATUS ---
-                // --- CALCULATE SUBSCRIPTION STATUS ---
-        console.log("Doctor Data Trial Ends At:", doctorData.trialEndsAt);
-
         if (doctorData.trialEndsAt) {
-          // Safely handle both Firestore Timestamps and plain Strings
           const trialEnd = doctorData.trialEndsAt.toDate 
             ? doctorData.trialEndsAt.toDate() 
             : new Date(doctorData.trialEndsAt);
@@ -71,8 +67,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           const now = new Date();
           const diffTime = trialEnd - now;
           const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          
-          console.log("Days Left:", daysLeft, "Is Due?:", daysLeft <= 7);
           
           setSubscription({
             status: doctorData.subscriptionStatus || 'trial',
@@ -428,8 +422,88 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           </div>
         )}
       </div>
-      
-      {/* (Keep your Schedule Modal exactly as it was here) */}
+
+      {/* SCHEDULE MODAL (RESTORED) */}
+      {showScheduleModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
+            <h3 className="text-2xl font-serif text-slate-800 mb-4">Manage Availability</h3>
+            
+            <div className="mb-5">
+              <label className="block text-sm font-bold text-slate-700 mb-2">Working Days</label>
+              <div className="flex flex-wrap gap-2">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
+                  <button
+                    key={day}
+                    onClick={() => {
+                      const newDays = schedule.workingDays.includes(day)
+                        ? schedule.workingDays.filter(d => d !== day)
+                        : [...schedule.workingDays, day];
+                      setSchedule({ ...schedule, workingDays: newDays });
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-sm font-bold border transition ${
+                      schedule.workingDays.includes(day) 
+                        ? "bg-brand text-white border-brand shadow-sm" 
+                        : "bg-white text-slate-500 border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    {day}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-4 mb-5">
+              <div className="flex-1">
+                <label className="block text-sm font-bold text-slate-700 mb-2">Start Time</label>
+                <input type="time" value={schedule.startTime} onChange={(e) => setSchedule({...schedule, startTime: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-brand" />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-bold text-slate-700 mb-2">End Time</label>
+                <input type="time" value={schedule.endTime} onChange={(e) => setSchedule({...schedule, endTime: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-brand" />
+              </div>
+            </div>
+
+            <div className="mb-5">
+              <label className="block text-sm font-bold text-slate-700 mb-2">Slot Duration</label>
+              <select value={schedule.slotDuration} onChange={(e) => setSchedule({...schedule, slotDuration: Number(e.target.value)})} className="w-full border border-slate-300 p-2.5 rounded-xl bg-white outline-none focus:border-brand">
+                <option value={15}>15 Minutes</option>
+                <option value={30}>30 Minutes</option>
+                <option value={45}>45 Minutes</option>
+                <option value={60}>60 Minutes</option>
+              </select>
+            </div>
+
+            <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+              <label className="block text-sm font-bold text-slate-700 mb-2">Block a Date (Mark as Full)</label>
+              <div className="flex gap-2 mb-3">
+                <input type="date" value={dateToBlock} onChange={(e) => setDateToBlock(e.target.value)} className="flex-1 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-brand text-sm" />
+                <button onClick={() => {
+                    if (dateToBlock && !schedule.blockedDates.includes(dateToBlock)) {
+                      setSchedule({ ...schedule, blockedDates: [...schedule.blockedDates, dateToBlock] });
+                      setDateToBlock("");
+                    }
+                  }} className="bg-slate-800 text-white px-4 rounded-xl font-bold hover:bg-slate-900 text-sm">Block</button>
+              </div>
+              {schedule.blockedDates.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {schedule.blockedDates.map(date => (
+                    <span key={date} className="bg-rose-100 text-rose-700 border border-rose-200 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-2">
+                      {date}
+                      <button onClick={() => setSchedule({ ...schedule, blockedDates: schedule.blockedDates.filter(d => d !== date) })} className="hover:text-rose-900">✕</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowScheduleModal(false)} className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
+              <button onClick={saveSchedule} className="flex-1 bg-brand text-white py-3 rounded-xl font-bold hover:bg-opacity-90 shadow-sm transition">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
