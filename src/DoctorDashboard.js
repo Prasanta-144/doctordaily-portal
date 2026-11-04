@@ -400,15 +400,15 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               <h3 className="text-lg font-extrabold text-[#2B2468]">{appt.patient}</h3>
                               {isPending && !appt.rescheduleRequested && (
-                                <span className="inline-flex items-center gap-1 bg-[#FDE4EA] text-[#D6456B] border border-[#F9C9D4] text-[10px] px-2.5 py-1 rounded-full font-bold">
+                                <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200 text-[10px] px-2.5 py-1 rounded-full font-bold">
                                   <WarnIcon /> Awaiting Patient Action
                                 </span>
                               )}
                               {appt.rescheduleRequested && (
-                                <span className="bg-rose-100 text-rose-700 text-[10px] px-2.5 py-1 rounded-full font-bold">Emergency</span>
+                                <span className="bg-rose-100 text-rose-800 border border-rose-200 text-[10px] px-2.5 py-1 rounded-full font-bold">Emergency</span>
                               )}
                               {isCompleted && (
-                                <span className="bg-slate-200 text-slate-700 text-[10px] px-2.5 py-1 rounded-full font-bold">Completed</span>
+                                <span className="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] px-2.5 py-1 rounded-full font-bold">Completed</span>
                               )}
                             </div>
                             <p className="text-xs text-slate-600">Phone: {appt.phone || "Not provided"}</p>
@@ -433,26 +433,33 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
                           {/* Right Side: Payment & Actions */}
                           <div className="flex flex-col items-end gap-3 shrink-0">
+                            
+                            {/* --- UPDATED PAYMENT BADGE --- */}
                             <span className={`inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full font-bold border ${
                               appt.paymentStatus === "Paid"
-                                ? 'bg-[#E6F6EA] text-[#2B7A33] border-[#A9DAB4]'
-                                : 'bg-[#FFF1DA] text-[#E65100] border-[#FFD8A3]'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
                             }`}>
                               {appt.paymentStatus === "Paid" ? <><CardIcon /> Paid</> : "💵 To be paid"}
                             </span>
 
+                            {/* --- UPDATED ACTION BUTTONS --- */}
                             {hasActions && (
                               <div className="flex gap-2">
                                 {isPending && !appt.rescheduleRequested && (
                                   <>
-                                    <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-[#4C41A6] text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-[#3F3590] shadow-sm">Accept</button>
-                                    <button onClick={() => updateStatus(appt.id, "Cancelled")} className="bg-white border border-slate-300 text-slate-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-50">Decline</button>
+                                    <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-[#4C41A6] text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-[#3F3590] shadow-sm transition">Accept</button>
+                                    <button onClick={() => updateStatus(appt.id, "Cancelled")} className="bg-white border border-slate-300 text-slate-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-50 transition">Decline</button>
                                   </>
                                 )}
                                 {appt.status === "Upcoming" && (
                                   <>
-                                    <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-[#E3F5E7] border border-[#B4DFBD] text-[#2B7A33] px-5 py-1.5 rounded-lg text-xs font-bold hover:bg-[#D3EFD9] transition">Complete</button>
-                                    <button onClick={() => requestReschedule(appt)} className="bg-[#FFE9EF] border border-[#FBC1D0] text-[#E0264F] px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-[#FFDCE6] transition">Reschedule</button>
+                                    <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100 transition">
+                                      Complete
+                                    </button>
+                                    <button onClick={() => requestReschedule(appt)} className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-100 transition">
+                                      Reschedule
+                                    </button>
                                   </>
                                 )}
                               </div>
