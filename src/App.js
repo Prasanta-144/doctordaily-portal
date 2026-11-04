@@ -180,7 +180,7 @@ export default function App() {
             Grow your practice.<br/>Manage appointments effortlessly.
           </h1>
           <p className="text-lg md:text-xl text-brand-100 mb-8 max-w-2xl mx-auto opacity-90">
-            Join Sonitpur's fastest-growing healthcare network. Connect with patients, manage your queue, and say goodbye to no-shows.
+            Join Sonitpur{"'"}s fastest-growing healthcare network. Connect with patients, manage your queue, and say goodbye to no-shows.
           </p>
           <a href="#register" className="bg-white text-brand font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-xl transition transform hover:-translate-y-1 inline-block">
             Create Doctor Profile
@@ -208,7 +208,7 @@ export default function App() {
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 text-center">
             <div className="text-4xl mb-4">🎁</div>
             <h3 className="text-xl font-bold mb-2 text-gray-800">1-Month Free Trial</h3>
-            <p className="text-gray-500 text-sm">Try all premium features free for 30 days. After that, it's just ₹2000/month to keep your practice running smoothly.</p>
+            <p className="text-gray-500 text-sm">Try all premium features free for 30 days. After that, it{"'"}s just ₹2000/month to keep your practice running smoothly.</p>
           </div>
         </div>
       </section>
@@ -342,7 +342,7 @@ export default function App() {
                   placeholder="Google Maps Link (Optional)" 
                   className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" 
                 />
-                <p className="text-xs text-gray-500 mt-1">Paste your clinic's Google Maps link so patients can find you easily.</p>
+                <p className="text-xs text-gray-500 mt-1">Paste your clinic{"'"}s Google Maps link so patients can find you easily.</p>
               </div>
 
               <input name="consultationFee" type="number" placeholder="Consultation Fee (₹)" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
