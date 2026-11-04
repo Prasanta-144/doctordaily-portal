@@ -204,10 +204,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     } catch (error) { alert("Error updating: " + error.message); }
   };
 
-  const clearCompleted = () => {
-    setAppointments(prev => prev.filter(a => a.status !== "Completed"));
-  };
-
+  // --- ADDED BACK: saveSchedule function ---
   const saveSchedule = async () => {
     if (!doctorId) return;
     try {
@@ -215,6 +212,27 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
       alert("Schedule updated successfully!");
       setShowScheduleModal(false);
     } catch (error) { alert("Error saving schedule: " + error.message); }
+  };
+
+  const clearCompleted = async () => {
+    // Only get completed appointments that haven't already been cleared
+    const completedAppts = appointments.filter(a => a.status === "Completed" && !a.clearedByDoctor);
+    if (completedAppts.length === 0) return;
+
+    try {
+      // Update all of them in Firestore simultaneously
+      const promises = completedAppts.map(appt =>
+        updateDoc(doc(db, "appointments", appt.id), { clearedByDoctor: true })
+      );
+      await Promise.all(promises);
+
+      // Update local state to flag them as cleared
+      setAppointments(prev => prev.map(a =>
+        a.status === "Completed" ? { ...a, clearedByDoctor: true } : a
+      ));
+    } catch (error) {
+      alert("Error clearing completed appointments: " + error.message);
+    }
   };
 
   // Earnings Logic
@@ -241,6 +259,9 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   };
 
   const { total: totalEarnings, count: patientCount, appointments: earningsList } = calculateEarnings();
+
+  // --- FIXED: Create a filtered list for the Queue UI ---
+  const displayedAppointments = appointments.filter(a => !a.clearedByDoctor);
 
   // --- LAYOUT ---
   return (
@@ -365,7 +386,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
                   Your Queue <span className="text-slate-400">·</span>
                 </h2>
-                {appointments.some(a => a.status === "Completed") && (
+                {/* Only show button if there are displayed completed appointments */}
+                {displayedAppointments.some(a => a.status === "Completed") && (
                   <button onClick={clearCompleted} className="flex items-center gap-2 text-xs font-bold text-[#4C41A6] bg-[#EEEBFB] px-4 py-2 rounded-full hover:bg-[#E3DFF8] transition">
                     <TrashIcon /> Clear Completed
                   </button>
@@ -379,13 +401,14 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                   <p className="font-medium">{error}</p>
                   <button onClick={onLogout} className="mt-3 bg-rose-600 text-white px-5 py-2 rounded-xl font-bold">Go Back</button>
                 </div>
-              ) : appointments.length === 0 ? (
+              ) : displayedAppointments.length === 0 ? (
                 <div className="bg-white p-10 text-center rounded-3xl shadow-sm border border-slate-200">
                   <p className="text-slate-400 font-medium">No appointments in the queue right now.</p>
                 </div>
               ) : (
                 <div className="grid gap-4">
-                  {appointments.map((appt) => {
+                  {/* Map over displayedAppointments instead of appointments */}
+                  {displayedAppointments.map((appt) => {
                     const isPending = appt.status === "Pending";
                     const isCompleted = appt.status === "Completed";
                     const hasActions = (isPending && !appt.rescheduleRequested) || appt.status === "Upcoming";
@@ -407,7 +430,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                                 </span>
                               )}
                               
-                              {/* 2. Awaiting Reschedule (Doctor requested) */}
+                              {/* 2. Awaiting Reschedule */}
                               {appt.rescheduleRequested && (
                                 <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-2.5 py-1 rounded-full font-bold">
                                   <WarnIcon /> Awaiting Reschedule
@@ -442,7 +465,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                           {/* Right Side: Payment & Actions */}
                           <div className="flex flex-col items-end gap-3 shrink-0">
                             
-                            {/* --- UPDATED PAYMENT BADGE --- */}
                             <span className={`inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full font-bold border ${
                               appt.paymentStatus === "Paid"
                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -451,7 +473,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                               {appt.paymentStatus === "Paid" ? <><CardIcon /> Paid</> : "💵 To be paid"}
                             </span>
 
-                            {/* --- UPDATED ACTION BUTTONS --- */}
                             {hasActions && (
                               <div className="flex gap-2">
                                 {isPending && !appt.rescheduleRequested && (
