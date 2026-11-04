@@ -110,9 +110,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [editPhotoPreview, setEditPhotoPreview] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
 
-  // --- NEW: Upload State ---
-  const [uploadingId, setUploadingId] = useState(null);
-
   // Schedule State
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [dateToBlock, setDateToBlock] = useState("");
@@ -299,36 +296,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
       setAppointments(prev => prev.map(a => a.id === appt.id ? { ...a, status: "Pending", rescheduleRequested: true } : a));
     } catch (error) { alert("Error updating: " + error.message); }
   };
-
-  // --- NEW: PRESCRIPTION UPLOAD HANDLER ---
-  const handlePrescriptionUpload = async (appt, file) => {
-    if (!file) return;
-    setUploadingId(appt.id);
-    
-    try {
-      const storage = getStorage();
-      const fileExtension = file.name.split('.').pop();
-      const storageRef = ref(storage, `prescriptions/${appt.id}.${fileExtension}`);
-      
-      await uploadBytes(storageRef, file);
-      const downloadUrl = await getDownloadURL(storageRef);
-
-      await updateDoc(doc(db, "appointments", appt.id), { 
-        prescriptionUrl: downloadUrl 
-      });
-
-      setAppointments(prev => prev.map(a => 
-        a.id === appt.id ? { ...a, prescriptionUrl: downloadUrl } : a
-      ));
-      
-      alert("Prescription uploaded successfully!");
-
-    } catch (error) {
-      alert("Error uploading prescription: " + error.message);
-    }
-    setUploadingId(null);
-  };
-  // ---------------------------------------
 
   const saveSchedule = async () => {
     if (!doctorId) return;
@@ -536,7 +503,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                   {displayedAppointments.map((appt) => {
                     const isPending = appt.status === "Pending";
                     const isCompleted = appt.status === "Completed";
-                    const hasActions = (isPending && !appt.rescheduleRequested) || appt.status === "Upcoming";
 
                     return (
                       <div key={appt.id} className={`bg-white rounded-2xl border border-[#E6E3F5] border-l-[6px] border-l-[#C9C3EE] shadow-[0_2px_10px_rgba(76,65,166,0.07)] px-5 py-4 transition ${isCompleted ? 'opacity-70' : ''}`}>
@@ -578,29 +544,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                                     <button onClick={() => requestReschedule(appt)} className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-100 transition">Reschedule</button>
                                   </>
                                 )}
-
-                                {/* --- NEW: PRESCRIPTION UPLOAD BUTTON --- */}
-                                {(appt.status === "Upcoming" || appt.status === "Completed") && (
-                                  <div className="relative">
-                                    {appt.prescriptionUrl ? (
-                                      <a href={appt.prescriptionUrl} target="_blank" rel="noreferrer" className="bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100 transition inline-block">
-                                        View Rx
-                                      </a>
-                                    ) : (
-                                      <label className={`cursor-pointer bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-100 transition ${uploadingId === appt.id ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                        {uploadingId === appt.id ? 'Uploading...' : 'Add Rx'}
-                                        <input 
-                                          type="file" 
-                                          accept=".pdf,image/*" 
-                                          className="hidden" 
-                                          disabled={uploadingId === appt.id}
-                                          onChange={(e) => handlePrescriptionUpload(appt, e.target.files[0])}
-                                        />
-                                      </label>
-                                    )}
-                                  </div>
-                                )}
-                                {/* --------------------------------------- */}
                             </div>
                           </div>
                         </div>
