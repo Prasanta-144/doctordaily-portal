@@ -58,7 +58,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         setDoctorName(doctorData.name);
         setDoctorFee(doctorData.consultationFee || 500);
         
-        // --- CALCULATE SUBSCRIPTION STATUS ---
+        // CALCULATE SUBSCRIPTION STATUS
         if (doctorData.trialEndsAt) {
           const trialEnd = doctorData.trialEndsAt.toDate 
             ? doctorData.trialEndsAt.toDate() 
@@ -72,7 +72,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             status: doctorData.subscriptionStatus || 'trial',
             trialEndsAt: trialEnd,
             daysLeft: daysLeft,
-            isDue: daysLeft <= 7 // Due if 7 days or less left
+            isDue: daysLeft <= 7
           });
         }
 
@@ -125,36 +125,23 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         description: "Monthly Subscription (₹2000)",
         order_id: orderId,
         handler: async function (response) {
-          // Payment Success! Update Firestore.
-          const newTrialEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // +30 days
+          const newTrialEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
           
           await updateDoc(doc(db, "doctors", doctorId), {
             subscriptionStatus: "active",
-            trialEndsAt: newTrialEnd, // Reset timer for next month
+            trialEndsAt: newTrialEnd,
             lastPaymentId: response.razorpay_payment_id
           });
 
-          setSubscription({
-            status: 'active',
-            trialEndsAt: newTrialEnd,
-            daysLeft: 30,
-            isDue: false
-          });
-
+          setSubscription({ status: 'active', trialEndsAt: newTrialEnd, daysLeft: 30, isDue: false });
           alert("Payment successful! Your account is active for another 30 days.");
         },
-        prefill: {
-          name: doctorName,
-          contact: doctorPhone,
-        },
-        theme: {
-          color: "#5E5AA8", // Your brand color
-        },
+        prefill: { name: doctorName, contact: doctorPhone },
+        theme: { color: "#5E5AA8" },
       };
 
       const rzp = new window.Razorpay(options);
       rzp.open();
-
     } catch (error) {
       alert("Error initiating payment: " + error.message);
     }
@@ -164,22 +151,15 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     try {
       await updateDoc(doc(db, "appointments", appointmentId), { status: newStatus });
       setAppointments(prev => prev.map(a => a.id === appointmentId ? { ...a, status: newStatus } : a));
-    } catch (error) {
-      alert("Error updating: " + error.message);
-    }
+    } catch (error) { alert("Error updating: " + error.message); }
   };
 
   const requestReschedule = async (appt) => {
     if (!window.confirm(`Request ${appt.patient} to choose a new date or get a refund?`)) return;
     try {
-      await updateDoc(doc(db, "appointments", appt.id), { 
-        status: "Pending",
-        rescheduleRequested: true 
-      });
+      await updateDoc(doc(db, "appointments", appt.id), { status: "Pending", rescheduleRequested: true });
       setAppointments(prev => prev.map(a => a.id === appt.id ? { ...a, status: "Pending", rescheduleRequested: true } : a));
-    } catch (error) {
-      alert("Error updating: " + error.message);
-    }
+    } catch (error) { alert("Error updating: " + error.message); }
   };
 
   const clearCompleted = () => {
@@ -192,9 +172,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
       await updateDoc(doc(db, "doctors", doctorId), { schedule: schedule });
       alert("Schedule updated successfully!");
       setShowScheduleModal(false);
-    } catch (error) {
-      alert("Error saving schedule: " + error.message);
-    }
+    } catch (error) { alert("Error saving schedule: " + error.message); }
   };
 
   // Earnings Logic
@@ -221,226 +199,261 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   };
 
   const { total: totalEarnings, count: patientCount, appointments: earningsList } = calculateEarnings();
-  const hasCompleted = appointments.some(a => a.status === "Completed");
 
+  // --- LAYOUT COMPONENT ---
   return (
-    <div className="min-h-screen bg-[#FAFAFC] p-6 font-sans">
-      <div className="max-w-4xl mx-auto">
-        
-               {/* SUBSCRIPTION BANNER */}
-        {subscription.isDue && (
-          <div className={`mb-8 p-6 rounded-3xl border shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition ${
-            subscription.daysLeft <= 0 ? 'bg-rose-50 border-rose-200' : 'bg-[#FFF9EA] border-[#FCE5B5]'
-          }`}>
-            <div className="flex items-start gap-4">
-              {/* Icon */}
-              <div className={`p-3 rounded-full mt-1 ${
-                subscription.daysLeft <= 0 ? 'bg-rose-100 text-rose-600' : 'bg-[#FCE5B5] text-amber-700'
-              }`}>
-                <span className="text-xl">{subscription.daysLeft <= 0 ? "⚠️" : "⏳"}</span>
+    <div className="flex h-screen bg-[#FAFAFC] font-sans overflow-hidden">
+      
+      {/* LEFT SIDEBAR */}
+      <aside className="w-64 bg-[#322B7B] flex flex-col justify-between hidden md:flex shadow-xl z-20">
+        <div>
+          {/* Logo */}
+          <div className="p-6 flex items-center gap-3 border-b border-white/10">
+            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center p-1.5 shadow-sm">
+              <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
+            </div>
+            <span className="text-xl font-extrabold text-white tracking-tight">DoctorDaily</span>
+          </div>
+
+          {/* Navigation */}
+          <nav className="p-4 space-y-2 mt-4">
+            <button className="w-full flex items-center gap-3 px-4 py-3 bg-[#4A429A] text-white rounded-xl font-semibold transition">
+              <span className="text-lg">📊</span> Dashboard
+            </button>
+            <button onClick={() => setShowScheduleModal(true)} className="w-full flex items-center gap-3 px-4 py-3 text-indigo-200 hover:bg-white/10 hover:text-white rounded-xl font-medium transition">
+              <span className="text-lg">📅</span> Manage Schedule
+            </button>
+            <a href="/" className="w-full flex items-center gap-3 px-4 py-3 text-indigo-200 hover:bg-white/10 hover:text-white rounded-xl font-medium transition">
+              <span className="text-lg">🏠</span> Homepage
+            </a>
+            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-rose-300 hover:bg-white/10 hover:text-rose-200 rounded-xl font-medium transition mt-4 border-t border-white/10 pt-4">
+              <span className="text-lg">🚪</span> Sign Out
+            </button>
+          </nav>
+        </div>
+
+        {/* Watermark Logo at Bottom */}
+        <div className="p-8 opacity-10 flex justify-center pb-12">
+           <img src="/logo.png" alt="watermark" className="w-40 h-40 object-contain brightness-0 invert" />
+        </div>
+      </aside>
+
+      {/* MAIN CONTENT AREA */}
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-5xl mx-auto p-6 md:p-10">
+          
+          {/* SUBSCRIPTION BANNER */}
+          {subscription.isDue && (
+            <div className={`mb-8 p-5 rounded-2xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm ${
+              subscription.daysLeft <= 0 ? 'bg-rose-50 border-rose-200' : 'bg-[#FFF9EA] border-[#FCE5B5]'
+            }`}>
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 flex items-center justify-center rounded-full shrink-0 ${
+                  subscription.daysLeft <= 0 ? 'bg-rose-100 text-rose-600' : 'bg-[#FCE5B5] text-amber-700'
+                }`}>
+                  <span className="text-xl">{subscription.daysLeft <= 0 ? "⚠️" : "⏳"}</span>
+                </div>
+                <div>
+                  <h3 className={`font-bold ${subscription.daysLeft <= 0 ? 'text-rose-800' : 'text-amber-900'}`}>
+                    {subscription.daysLeft <= 0 ? "Subscription Overdue" : "Payment Due Soon"}
+                  </h3>
+                  <p className={`text-sm mt-0.5 ${subscription.daysLeft <= 0 ? 'text-rose-600' : 'text-amber-700'}`}>
+                    {subscription.daysLeft <= 0 
+                      ? "Your free trial has ended. Please pay to avoid suspension."
+                      : `Your monthly subscription of ₹2000 is due in ${subscription.daysLeft} days. Pay now to avoid service interruption.`}
+                  </p>
+                </div>
+              </div>
+              <button onClick={handleSubscriptionPayment} className="w-full md:w-auto bg-[#5E5AA8] text-white px-6 py-2.5 rounded-xl font-bold hover:bg-opacity-90 shadow-sm transition whitespace-nowrap">
+                Pay ₹2000 →
+              </button>
+            </div>
+          )}
+
+          {/* HEADER SECTION */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+              <h1 className="text-3xl font-extrabold text-[#322B7B] tracking-tight">Doctor Dashboard</h1>
+              <p className="text-slate-600 mt-1 font-medium">Welcome back, {doctorName || "Loading..."}</p>
+              <p className="text-xs text-slate-400 mt-1">Logged in as: {doctorPhone}</p>
+            </div>
+            
+            {/* Mobile Menu Buttons (Hidden on Desktop) */}
+            <div className="flex md:hidden gap-3 w-full">
+              <button onClick={() => setShowScheduleModal(true)} className="flex-1 text-sm font-bold bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-xl">Schedule</button>
+              <button onClick={onLogout} className="flex-1 text-sm font-bold bg-rose-50 text-rose-600 px-4 py-2 rounded-xl">Sign Out</button>
+            </div>
+          </div>
+
+          {/* TABS */}
+          <div className="flex gap-8 mb-6 border-b border-slate-200">
+            <button 
+              onClick={() => setActiveTab('queue')} 
+              className={`text-sm md:text-base font-bold pb-3 transition border-b-2 ${activeTab === 'queue' ? 'text-[#5E5AA8] border-[#5E5AA8]' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+            >
+              Appointment Queue
+            </button>
+            <button 
+              onClick={() => setActiveTab('earnings')} 
+              className={`text-sm md:text-base font-bold pb-3 transition border-b-2 ${activeTab === 'earnings' ? 'text-[#5E5AA8] border-[#5E5AA8]' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+            >
+              Earnings
+            </button>
+          </div>
+
+          {/* --- QUEUE TAB --- */}
+          {activeTab === 'queue' && (
+            <>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold text-slate-800">Your Queue</h2>
+                {appointments.some(a => a.status === "Completed") && (
+                  <button onClick={clearCompleted} className="text-xs font-bold text-slate-500 bg-[#EBEBF3] px-4 py-2 rounded-full hover:bg-slate-200 transition">
+                    🗑️ Clear Completed
+                  </button>
+                )}
               </div>
               
-              {/* Text Content */}
-              <div>
-                <h3 className={`text-lg font-bold ${
-                  subscription.daysLeft <= 0 ? 'text-rose-800' : 'text-amber-900'
-                }`}>
-                  {subscription.daysLeft <= 0 ? "Subscription Overdue" : "Payment Due Soon"}
-                </h3>
-                <p className={`text-sm mt-1 ${
-                  subscription.daysLeft <= 0 ? 'text-rose-600' : 'text-amber-700'
-                }`}>
-                  {subscription.daysLeft <= 0 
-                    ? "Your free trial has ended. Please pay to avoid suspension of services."
-                    : `Your monthly subscription of ₹2000 is due in ${subscription.daysLeft} days. Pay now to avoid service interruption.`}
-                </p>
+              {loading ? (
+                <p className="text-slate-500 font-medium">Loading appointments...</p>
+              ) : error ? (
+                <div className="bg-rose-50 text-rose-600 p-5 rounded-2xl border border-rose-100">
+                  <p className="font-medium">{error}</p>
+                  <button onClick={onLogout} className="mt-3 bg-rose-600 text-white px-5 py-2 rounded-xl font-bold">Go Back</button>
+                </div>
+              ) : appointments.length === 0 ? (
+                <div className="bg-white p-10 text-center rounded-3xl shadow-sm border border-slate-200">
+                  <p className="text-slate-400 font-medium">No appointments in the queue right now.</p>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {appointments.map((appt) => {
+                    const isPending = appt.status === "Pending";
+                    const isCompleted = appt.status === "Completed";
+                    
+                    return (
+                      <div key={appt.id} className={`p-5 rounded-2xl border transition ${
+                        isPending ? 'bg-[#FFFDF5] border-[#FCE5B5]' : 
+                        isCompleted ? 'bg-slate-50 border-slate-200 opacity-75' : 
+                        'bg-white border-slate-200'
+                      }`}>
+                        <div className="flex justify-between items-start">
+                          {/* Left Side: Patient Info */}
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="text-lg font-bold text-slate-800">{appt.patient}</h3>
+                              {isPending && !appt.rescheduleRequested && (
+                                <span className="bg-[#FDE8E9] text-[#D95D5D] text-[10px] px-2.5 py-1 rounded-full font-bold">⚠️ Awaiting Patient Action</span>
+                              )}
+                              {appt.rescheduleRequested && (
+                                <span className="bg-rose-100 text-rose-700 text-[10px] px-2.5 py-1 rounded-full font-bold">Emergency</span>
+                              )}
+                              {isCompleted && (
+                                <span className="bg-slate-200 text-slate-700 text-[10px] px-2.5 py-1 rounded-full font-bold">Completed</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-slate-500">Phone: {appt.phone || "Not provided"}</p>
+                            
+                            <div className="flex gap-2 mt-3">
+                              <span className="bg-[#F0F2F9] text-[#322B7B] text-xs font-semibold px-2.5 py-1 rounded-md">
+                                {appt.dayLabel} at {appt.slot}
+                              </span>
+                              <span className="bg-[#F0F2F9] text-[#322B7B] text-xs font-semibold px-2.5 py-1 rounded-md">
+                                Token #{appt.token}
+                              </span>
+                            </div>
+
+                            {appt.reason && (
+                              <div className="mt-3 text-sm text-slate-600">
+                                <span className="font-semibold text-slate-800">Reason:</span> {appt.reason}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Right Side: Payment & Actions */}
+                          <div className="flex flex-col items-end gap-3">
+                            {/* Payment Status */}
+                            <span className={`text-[11px] px-3 py-1 rounded-full font-bold border flex items-center gap-1 ${
+                              appt.paymentStatus === "Paid" 
+                                ? 'bg-[#EBF8EE] text-[#2E7D32] border-[#C8E6C9]' 
+                                : 'bg-[#FFF3E0] text-[#E65100] border-[#FFE0B2]'
+                            }`}>
+                              {appt.paymentStatus === "Paid" ? "💳 Paid" : "💵 To be paid"}
+                            </span>
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-2 mt-2">
+                              {isPending && !appt.rescheduleRequested && (
+                                <>
+                                  <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-[#322B7B] text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-opacity-90 shadow-sm">Accept</button>
+                                  <button onClick={() => updateStatus(appt.id, "Cancelled")} className="bg-white border border-slate-300 text-slate-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-50">Decline</button>
+                                </>
+                              )}
+                              {appt.status === "Upcoming" && (
+                                <>
+                                  <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-[#EBF8EE] border border-[#C8E6C9] text-[#2E7D32] px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-[#d1f0d5]">Complete</button>
+                                  <button onClick={() => requestReschedule(appt)} className="bg-rose-50 border border-rose-200 text-rose-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-100">Reschedule</button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* --- EARNINGS TAB --- */}
+          {activeTab === 'earnings' && (
+            <div className="animate-fade-in">
+              <div className="flex bg-slate-200/50 p-1 rounded-xl w-max mb-6">
+                <button onClick={() => setEarningsView('daily')} className={`px-6 py-2 rounded-lg text-sm font-bold transition ${earningsView === 'daily' ? 'bg-white text-[#322B7B] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Daily</button>
+                <button onClick={() => setEarningsView('monthly')} className={`px-6 py-2 rounded-lg text-sm font-bold transition ${earningsView === 'monthly' ? 'bg-white text-[#322B7B] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Monthly</button>
               </div>
-            </div>
-            
-            {/* Button */}
-            <button 
-              onClick={handleSubscriptionPayment}
-              className="w-full md:w-auto bg-brand text-white px-8 py-3 rounded-xl font-bold hover:bg-opacity-90 shadow-md transition whitespace-nowrap flex items-center justify-center gap-2"
-            >
-              Pay ₹2000
-              <span>→</span>
-            </button>
-          </div>
-        )}
 
-        {/* HEADER SECTION */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-4xl font-serif text-brand tracking-tight">Doctor Dashboard</h1>
-            <p className="text-slate-600 mt-2 font-medium">Welcome back, {doctorName || "Loading..."}</p>
-            <p className="text-sm text-slate-400 mt-1">Logged in as: {doctorPhone}</p>
-          </div>
-          
-          <div className="flex items-center gap-6">
-            <button onClick={() => setShowScheduleModal(true)} className="text-sm font-bold bg-white border border-brand text-brand px-4 py-2 rounded-xl hover:bg-brand hover:text-white transition shadow-sm">
-              Manage Schedule
-            </button>
-            <a href="/" className="text-sm font-semibold text-slate-500 hover:text-brand transition">Homepage</a>
-            <button onClick={onLogout} className="text-sm font-semibold text-rose-500 hover:text-rose-600 transition border-l border-slate-200 pl-6">Sign Out</button>
-          </div>
-        </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div className="bg-[#322B7B] text-white p-8 rounded-3xl shadow-lg relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-6 opacity-10 text-8xl font-serif">₹</div>
+                  <p className="text-indigo-200 font-medium mb-1">Total Earnings ({earningsView})</p>
+                  <h3 className="text-5xl font-black tracking-tight">₹{totalEarnings}</h3>
+                </div>
+                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 relative">
+                  <div className="absolute top-0 right-0 p-6 opacity-5 text-8xl">👥</div>
+                  <p className="text-slate-500 font-medium mb-1">Patients Seen ({earningsView})</p>
+                  <h3 className="text-5xl font-black tracking-tight text-slate-800">{patientCount}</h3>
+                </div>
+              </div>
 
-        {/* TABS */}
-        <div className="flex gap-4 mb-6 border-b border-slate-200 pb-2">
-          <button 
-            onClick={() => setActiveTab('queue')} 
-            className={`text-lg font-bold pb-2 px-2 transition ${activeTab === 'queue' ? 'text-brand border-b-2 border-brand' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            Appointment Queue
-          </button>
-          <button 
-            onClick={() => setActiveTab('earnings')} 
-            className={`text-lg font-bold pb-2 px-2 transition ${activeTab === 'earnings' ? 'text-brand border-b-2 border-brand' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            Earnings
-          </button>
-        </div>
-
-        {/* --- QUEUE TAB --- */}
-        {activeTab === 'queue' && (
-          <>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-slate-800">Your Queue</h2>
-              {hasCompleted && (
-                <button onClick={clearCompleted} className="text-sm font-semibold text-slate-500 hover:text-brand transition bg-slate-100 px-4 py-2 rounded-full">
-                  Clear Completed
-                </button>
+              <h3 className="text-lg font-bold text-slate-800 mb-4">Recent Transactions</h3>
+              {earningsList.length === 0 ? (
+                <div className="bg-white p-10 text-center rounded-3xl shadow-sm border border-slate-200">
+                  <p className="text-slate-400 font-medium">No earnings recorded for this period yet.</p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                  {earningsList.map((appt, index) => (
+                    <div key={appt.id} className={`p-5 flex justify-between items-center ${index !== earningsList.length - 1 ? 'border-b border-slate-100' : ''}`}>
+                      <div>
+                        <p className="font-bold text-slate-800">{appt.patient}</p>
+                        <p className="text-sm text-slate-500">{appt.dayLabel} · Token #{appt.token}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-emerald-600">+ ₹{appt.consultationFee || doctorFee}</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase">{appt.paymentStatus === 'Paid' ? 'Online' : 'Cash/Clinic'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-            
-            {loading ? (
-              <p className="text-slate-500 font-medium">Loading appointments...</p>
-            ) : error ? (
-              <div className="bg-rose-50 text-rose-600 p-5 rounded-2xl border border-rose-100">
-                <p className="font-medium">{error}</p>
-                <button onClick={onLogout} className="mt-3 bg-rose-600 text-white px-5 py-2 rounded-xl font-bold">Go Back</button>
-              </div>
-            ) : appointments.length === 0 ? (
-              <div className="bg-white p-10 text-center rounded-3xl shadow-sm border border-slate-100">
-                <p className="text-slate-400 font-medium">No appointments in the queue right now.</p>
-              </div>
-            ) : (
-              <div className="grid gap-5">
-                {appointments.map((appt) => {
-                  const isPending = appt.status === "Pending";
-                  const isCompleted = appt.status === "Completed";
-                  const isOnlinePaid = appt.paymentMethod === "Online" && appt.paymentStatus === "Paid";
-                  const isPayAtClinic = appt.paymentMethod === "Pay at Clinic";
-                  
-                  let badgeText = "⏳ Payment Pending";
-                  let badgeStyle = "bg-slate-100 text-slate-600 border-slate-200";
-                  if (isOnlinePaid) { badgeText = "💳 Paid"; badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200"; } 
-                  else if (isPayAtClinic) { badgeText = "💵 To be paid at clinic"; badgeStyle = "bg-orange-50 text-orange-700 border-orange-200"; }
+          )}
 
-                  return (
-                    <div key={appt.id} className={`p-6 rounded-3xl shadow-sm border flex justify-between items-center transition ${isPending ? 'bg-amber-50/50 border-amber-100' : isCompleted ? 'bg-slate-50 border-slate-100 opacity-75' : 'bg-white border-slate-100'}`}>
-                      <div className="pr-4">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-xl font-bold text-slate-800">{appt.patient}</h3>
-                          {isPending && !appt.rescheduleRequested && <span className="bg-amber-100 text-amber-700 border border-amber-200 text-xs px-3 py-1 rounded-full font-bold">Pending Approval</span>}
-                          {appt.rescheduleRequested && <span className="bg-rose-100 text-rose-700 border border-rose-200 text-xs px-3 py-1 rounded-full font-bold">⚠️ Awaiting Patient Action</span>}
-                          {isCompleted && <span className="bg-slate-200 text-slate-700 text-xs px-3 py-1 rounded-full font-bold">Completed</span>}
-                        </div>
-                        <p className="text-sm text-slate-500 font-medium">Phone: {appt.phone || "Not provided"}</p>
-                        <p className="text-sm text-brand font-semibold mt-2 bg-brand/5 inline-block px-3 py-1 rounded-lg">
-                          {appt.dayLabel} at {appt.slot} <span className="text-slate-300 mx-1">|</span> Token #{appt.token}
-                        </p>
-                        {appt.reason && (
-                          <div className="mt-3 bg-slate-50 border border-slate-100 p-3 rounded-xl">
-                            <p className="text-sm text-slate-600"><span className="font-semibold text-slate-800">Reason:</span> {appt.reason}</p>
-                          </div>
-                        )}
-                        <div className="mt-4 flex items-center gap-2">
-                          <span className={`text-xs px-3 py-1.5 rounded-full font-bold border ${badgeStyle}`}>{badgeText}</span>
-                        </div>
-                      </div>
-                      <div className="flex-shrink-0 flex flex-col gap-2">
-                        {isPending && !appt.rescheduleRequested && (
-                          <>
-                            <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-brand text-white px-6 py-2.5 rounded-xl font-bold hover:bg-opacity-90 transition shadow-sm w-full">Accept</button>
-                            <button onClick={() => updateStatus(appt.id, "Cancelled")} className="bg-white border border-rose-200 text-rose-600 px-6 py-2.5 rounded-xl font-bold hover:bg-rose-50 transition w-full">Decline</button>
-                          </>
-                        )}
-                        {appt.status === "Upcoming" && (
-                          <>
-                            <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-slate-800 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-slate-900 transition shadow-sm w-full">Complete Visit</button>
-                            <button onClick={() => requestReschedule(appt)} className="bg-white border border-rose-200 text-rose-600 px-4 py-2.5 rounded-xl font-bold hover:bg-rose-50 transition w-full text-sm">Emergency Reschedule</button>
-                          </>
-                        )}
-                        {isCompleted && (
-                          <button disabled className="bg-slate-100 text-slate-400 px-6 py-2.5 rounded-xl font-bold cursor-not-allowed w-full">Done</button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        )}
+        </div>
+      </main>
 
-        {/* --- EARNINGS TAB --- */}
-        {activeTab === 'earnings' && (
-          <div className="animate-fade-in">
-            <div className="flex bg-slate-200/50 p-1 rounded-2xl w-max mb-6">
-              <button 
-                onClick={() => setEarningsView('daily')} 
-                className={`px-6 py-2 rounded-xl text-sm font-bold transition ${earningsView === 'daily' ? 'bg-white text-brand shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                Daily
-              </button>
-              <button 
-                onClick={() => setEarningsView('monthly')} 
-                className={`px-6 py-2 rounded-xl text-sm font-bold transition ${earningsView === 'monthly' ? 'bg-white text-brand shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                Monthly
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              <div className="bg-brand text-white p-8 rounded-3xl shadow-lg relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-6 opacity-10 text-8xl">₹</div>
-                <p className="text-brand-100 font-medium mb-1">Total Earnings ({earningsView})</p>
-                <h3 className="text-5xl font-black tracking-tight">₹{totalEarnings}</h3>
-              </div>
-              <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 relative">
-                <div className="absolute top-0 right-0 p-6 opacity-5 text-8xl">👥</div>
-                <p className="text-slate-500 font-medium mb-1">Patients Seen ({earningsView})</p>
-                <h3 className="text-5xl font-black tracking-tight text-slate-800">{patientCount}</h3>
-              </div>
-            </div>
-
-            <h3 className="text-xl font-bold text-slate-800 mb-4">Recent Transactions</h3>
-            {earningsList.length === 0 ? (
-              <div className="bg-white p-10 text-center rounded-3xl shadow-sm border border-slate-100">
-                <p className="text-slate-400 font-medium">No earnings recorded for this period yet.</p>
-              </div>
-            ) : (
-              <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                {earningsList.map((appt, index) => (
-                  <div key={appt.id} className={`p-5 flex justify-between items-center ${index !== earningsList.length - 1 ? 'border-b border-slate-100' : ''}`}>
-                    <div>
-                      <p className="font-bold text-slate-800">{appt.patient}</p>
-                      <p className="text-sm text-slate-500">{appt.dayLabel} · Token #{appt.token}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-emerald-600">+ ₹{appt.consultationFee || doctorFee}</p>
-                      <p className="text-xs font-bold text-slate-400 uppercase">{appt.paymentStatus === 'Paid' ? 'Online' : 'Cash/Clinic'}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* SCHEDULE MODAL (RESTORED) */}
+      {/* SCHEDULE MODAL */}
       {showScheduleModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
@@ -460,7 +473,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                     }}
                     className={`px-3 py-1.5 rounded-full text-sm font-bold border transition ${
                       schedule.workingDays.includes(day) 
-                        ? "bg-brand text-white border-brand shadow-sm" 
+                        ? "bg-[#322B7B] text-white border-[#322B7B] shadow-sm" 
                         : "bg-white text-slate-500 border-slate-300 hover:bg-slate-50"
                     }`}
                   >
@@ -473,17 +486,17 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             <div className="flex gap-4 mb-5">
               <div className="flex-1">
                 <label className="block text-sm font-bold text-slate-700 mb-2">Start Time</label>
-                <input type="time" value={schedule.startTime} onChange={(e) => setSchedule({...schedule, startTime: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-brand" />
+                <input type="time" value={schedule.startTime} onChange={(e) => setSchedule({...schedule, startTime: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#322B7B]" />
               </div>
               <div className="flex-1">
                 <label className="block text-sm font-bold text-slate-700 mb-2">End Time</label>
-                <input type="time" value={schedule.endTime} onChange={(e) => setSchedule({...schedule, endTime: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-brand" />
+                <input type="time" value={schedule.endTime} onChange={(e) => setSchedule({...schedule, endTime: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#322B7B]" />
               </div>
             </div>
 
             <div className="mb-5">
               <label className="block text-sm font-bold text-slate-700 mb-2">Slot Duration</label>
-              <select value={schedule.slotDuration} onChange={(e) => setSchedule({...schedule, slotDuration: Number(e.target.value)})} className="w-full border border-slate-300 p-2.5 rounded-xl bg-white outline-none focus:border-brand">
+              <select value={schedule.slotDuration} onChange={(e) => setSchedule({...schedule, slotDuration: Number(e.target.value)})} className="w-full border border-slate-300 p-2.5 rounded-xl bg-white outline-none focus:border-[#322B7B]">
                 <option value={15}>15 Minutes</option>
                 <option value={30}>30 Minutes</option>
                 <option value={45}>45 Minutes</option>
@@ -494,13 +507,13 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-200">
               <label className="block text-sm font-bold text-slate-700 mb-2">Block a Date (Mark as Full)</label>
               <div className="flex gap-2 mb-3">
-                <input type="date" value={dateToBlock} onChange={(e) => setDateToBlock(e.target.value)} className="flex-1 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-brand text-sm" />
+                <input type="date" value={dateToBlock} onChange={(e) => setDateToBlock(e.target.value)} className="flex-1 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#322B7B] text-sm" />
                 <button onClick={() => {
                     if (dateToBlock && !schedule.blockedDates.includes(dateToBlock)) {
                       setSchedule({ ...schedule, blockedDates: [...schedule.blockedDates, dateToBlock] });
                       setDateToBlock("");
                     }
-                  }} className="bg-slate-800 text-white px-4 rounded-xl font-bold hover:bg-slate-900 text-sm">Block</button>
+                  }} className="bg-[#322B7B] text-white px-4 rounded-xl font-bold hover:bg-opacity-90 text-sm">Block</button>
               </div>
               {schedule.blockedDates.length > 0 && (
                 <div className="flex flex-wrap gap-2">
@@ -516,7 +529,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
             <div className="flex gap-3">
               <button onClick={() => setShowScheduleModal(false)} className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
-              <button onClick={saveSchedule} className="flex-1 bg-brand text-white py-3 rounded-xl font-bold hover:bg-opacity-90 shadow-sm transition">Save Changes</button>
+              <button onClick={saveSchedule} className="flex-1 bg-[#322B7B] text-white py-3 rounded-xl font-bold hover:bg-opacity-90 shadow-sm transition">Save Changes</button>
             </div>
           </div>
         </div>
