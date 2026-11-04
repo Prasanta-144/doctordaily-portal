@@ -3,6 +3,48 @@ import { collection, query, where, getDocs, doc, updateDoc } from "firebase/fire
 import { db } from "./firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
+/* ---------- Small inline icons (stroke = currentColor) ---------- */
+const Icon = ({ children, className = "w-[18px] h-[18px]" }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    {children}
+  </svg>
+);
+const DashboardIcon = () => (
+  <Icon><path d="M12 4a9 9 0 0 0-9 9v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3a9 9 0 0 0-9-9z" /><path d="M12 13l3-3" /><circle cx="12" cy="13" r="1" /></Icon>
+);
+const CalendarIcon = () => (
+  <Icon><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M8 3v4M16 3v4M3 10h18" /></Icon>
+);
+const HomeIcon = () => (
+  <Icon><path d="M3 11l9-8 9 8" /><path d="M5 10v10h14V10" /></Icon>
+);
+const SignOutIcon = () => (
+  <Icon><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5M21 12H9" /></Icon>
+);
+const TrashIcon = () => (
+  <Icon className="w-3.5 h-3.5"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" /></Icon>
+);
+const WarnIcon = () => (
+  <svg viewBox="0 0 24 24" className="w-3 h-3" fill="currentColor"><path d="M12 2L1 21h22L12 2zm1 15h-2v-2h2v2zm0-4h-2V9h2v4z" /></svg>
+);
+const CardIcon = () => (
+  <Icon className="w-3.5 h-3.5"><rect x="2" y="5" width="20" height="14" rx="2.5" /><path d="M2 10h20M6 15h4" /></Icon>
+);
+const HourglassIcon = () => (
+  <Icon className="w-6 h-6"><path d="M6 3h12M6 21h12M7 3c0 5 5 6 5 9s-5 4-5 9M17 3c0 5-5 6-5 9s5 4 5 9" /></Icon>
+);
+const CalendarPlusWatermark = () => (
+  <svg viewBox="0 0 160 160" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-44 h-44">
+    <rect x="18" y="28" width="104" height="96" rx="14" />
+    <path d="M18 56h104M46 16v20M94 16v20" />
+    <g strokeWidth="2.5">
+      <path d="M34 72h6M52 72h6M70 72h6M34 88h6M52 88h6M34 104h6M52 104h6" />
+    </g>
+    <rect x="76" y="84" width="62" height="62" rx="12" fill="#3F3590" />
+    <path d="M107 100v30M92 115h30" strokeWidth="5" />
+  </svg>
+);
+
 export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [appointments, setAppointments] = useState([]);
   const [doctorName, setDoctorName] = useState('');
@@ -10,11 +52,11 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [doctorId, setDoctorId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   // Navigation & View States
   const [activeTab, setActiveTab] = useState('queue');
   const [earningsView, setEarningsView] = useState('daily');
-  
+
   // --- SUBSCRIPTION STATE ---
   const [subscription, setSubscription] = useState({
     status: 'trial',
@@ -38,7 +80,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     const fetchDoctorData = async () => {
       setLoading(true);
       setError(null);
-      
+
       try {
         const phoneE164 = doctorPhone.startsWith("+91") ? doctorPhone : `+91${doctorPhone}`;
         const doctorsRef = collection(db, "doctors");
@@ -53,21 +95,21 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
         const doctorDoc = doctorSnapshot.docs[0];
         const doctorData = doctorDoc.data();
-        
+
         setDoctorId(doctorDoc.id);
         setDoctorName(doctorData.name);
         setDoctorFee(doctorData.consultationFee || 500);
-        
+
         // CALCULATE SUBSCRIPTION STATUS
         if (doctorData.trialEndsAt) {
-          const trialEnd = doctorData.trialEndsAt.toDate 
-            ? doctorData.trialEndsAt.toDate() 
+          const trialEnd = doctorData.trialEndsAt.toDate
+            ? doctorData.trialEndsAt.toDate()
             : new Date(doctorData.trialEndsAt);
-            
+
           const now = new Date();
           const diffTime = trialEnd - now;
           const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          
+
           setSubscription({
             status: doctorData.subscriptionStatus || 'trial',
             trialEndsAt: trialEnd,
@@ -93,9 +135,9 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         })).filter(a => ["Pending", "Upcoming", "Completed"].includes(a.status));
 
         appts.sort((a, b) => {
-            if (a.status === "Pending" && b.status !== "Pending") return -1;
-            if (a.status !== "Pending" && b.status === "Pending") return 1;
-            return 0;
+          if (a.status === "Pending" && b.status !== "Pending") return -1;
+          if (a.status !== "Pending" && b.status === "Pending") return 1;
+          return 0;
         });
 
         setAppointments(appts);
@@ -125,8 +167,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         description: "Monthly Subscription (₹2000)",
         order_id: orderId,
         handler: async function (response) {
-          const newTrialEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
-          
+          const newTrialEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
           await updateDoc(doc(db, "doctors", doctorId), {
             subscriptionStatus: "active",
             trialEndsAt: newTrialEnd,
@@ -191,7 +233,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           const date = a.createdAt.toDate();
           return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
         }
-        return true; 
+        return true;
       });
     }
     const total = filteredAppts.reduce((sum, a) => sum + (a.consultationFee || doctorFee), 0);
@@ -200,15 +242,15 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
   const { total: totalEarnings, count: patientCount, appointments: earningsList } = calculateEarnings();
 
-  // --- LAYOUT COMPONENT ---
+  // --- LAYOUT ---
   return (
-    <div className="flex h-screen bg-[#FAFAFC] font-sans overflow-hidden">
-      
+    <div className="flex h-screen bg-[#F7F6FC] font-sans overflow-hidden">
+
       {/* LEFT SIDEBAR */}
-      <aside className="w-64 bg-[#322B7B] flex flex-col justify-between hidden md:flex shadow-xl z-20">
-        <div>
+      <aside className="w-64 bg-gradient-to-b from-[#4C41A6] to-[#3B3188] hidden md:flex flex-col justify-between shadow-xl z-20 relative overflow-hidden">
+        <div className="relative z-10">
           {/* Logo */}
-          <div className="p-6 flex items-center gap-3 border-b border-white/10">
+          <div className="px-5 pt-6 pb-5 flex items-center gap-3">
             <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center p-1.5 shadow-sm">
               <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
             </div>
@@ -216,69 +258,84 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           </div>
 
           {/* Navigation */}
-          <nav className="p-4 space-y-2 mt-4">
-            <button className="w-full flex items-center gap-3 px-4 py-3 bg-[#4A429A] text-white rounded-xl font-semibold transition">
-              <span className="text-lg">📊</span> Dashboard
+          <nav className="px-4 mt-2 space-y-1.5">
+            <button className="w-full flex items-center gap-3 px-4 py-3 bg-white/15 text-white rounded-xl text-sm font-bold transition">
+              <DashboardIcon /> Dashboard
             </button>
-            <button onClick={() => setShowScheduleModal(true)} className="w-full flex items-center gap-3 px-4 py-3 text-indigo-200 hover:bg-white/10 hover:text-white rounded-xl font-medium transition">
-              <span className="text-lg">📅</span> Manage Schedule
+            <button onClick={() => setShowScheduleModal(true)} className="w-full flex items-center gap-3 px-4 py-3 text-white/90 hover:bg-white/10 rounded-xl text-sm font-bold transition">
+              <CalendarIcon /> Manage Schedule
             </button>
-            <a href="/" className="w-full flex items-center gap-3 px-4 py-3 text-indigo-200 hover:bg-white/10 hover:text-white rounded-xl font-medium transition">
-              <span className="text-lg">🏠</span> Homepage
+            <a href="/" className="w-full flex items-center gap-3 px-4 py-3 text-white/90 hover:bg-white/10 rounded-xl text-sm font-bold transition">
+              <HomeIcon /> Homepage
             </a>
-            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-rose-300 hover:bg-white/10 hover:text-rose-200 rounded-xl font-medium transition mt-4 border-t border-white/10 pt-4">
-              <span className="text-lg">🚪</span> Sign Out
+
+            <div className="border-t border-white/15 my-4 mx-1" />
+
+            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-[#FF8FA8] hover:bg-white/10 rounded-xl text-sm font-bold transition">
+              <SignOutIcon /> Sign Out
             </button>
           </nav>
         </div>
 
-        {/* Watermark Logo at Bottom */}
-        <div className="p-8 opacity-10 flex justify-center pb-12">
-           <img src="/logo.png" alt="watermark" className="w-40 h-40 object-contain brightness-0 invert" />
+        {/* Watermark at bottom */}
+        <div className="relative z-0 flex justify-start pl-4 pb-4 opacity-[0.12] pointer-events-none translate-y-4">
+          <CalendarPlusWatermark />
         </div>
       </aside>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto bg-gradient-to-br from-white via-[#F8F7FD] to-[#EFEDFA]">
         <div className="max-w-5xl mx-auto p-6 md:p-10">
-          
+
           {/* SUBSCRIPTION BANNER */}
           {subscription.isDue && (
-            <div className={`mb-8 p-5 rounded-2xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm ${
-              subscription.daysLeft <= 0 ? 'bg-rose-50 border-rose-200' : 'bg-[#FFF9EA] border-[#FCE5B5]'
+            <div className={`mb-8 px-5 py-4 rounded-2xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm ${
+              subscription.daysLeft <= 0 ? 'bg-rose-50 border-rose-200' : 'bg-[#F1EFFB] border-[#DDD8F3]'
             }`}>
               <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 flex items-center justify-center rounded-full shrink-0 ${
-                  subscription.daysLeft <= 0 ? 'bg-rose-100 text-rose-600' : 'bg-[#FCE5B5] text-amber-700'
+                <div className={`w-12 h-12 flex items-center justify-center rounded-full shrink-0 bg-white shadow-sm ${
+                  subscription.daysLeft <= 0 ? 'text-rose-600' : 'text-[#6B5FC7]'
                 }`}>
-                  <span className="text-xl">{subscription.daysLeft <= 0 ? "⚠️" : "⏳"}</span>
+                  {subscription.daysLeft <= 0 ? <span className="text-xl">⚠️</span> : <HourglassIcon />}
                 </div>
                 <div>
-                  <h3 className={`font-bold ${subscription.daysLeft <= 0 ? 'text-rose-800' : 'text-amber-900'}`}>
+                  <h3 className={`font-bold ${subscription.daysLeft <= 0 ? 'text-rose-800' : 'text-[#2B2468]'}`}>
                     {subscription.daysLeft <= 0 ? "Subscription Overdue" : "Payment Due Soon"}
                   </h3>
-                  <p className={`text-sm mt-0.5 ${subscription.daysLeft <= 0 ? 'text-rose-600' : 'text-amber-700'}`}>
-                    {subscription.daysLeft <= 0 
+                  <p className={`text-sm mt-0.5 ${subscription.daysLeft <= 0 ? 'text-rose-600' : 'text-slate-600'}`}>
+                    {subscription.daysLeft <= 0
                       ? "Your free trial has ended. Please pay to avoid suspension."
                       : `Your monthly subscription of ₹2000 is due in ${subscription.daysLeft} days. Pay now to avoid service interruption.`}
                   </p>
                 </div>
               </div>
-              <button onClick={handleSubscriptionPayment} className="w-full md:w-auto bg-[#5E5AA8] text-white px-6 py-2.5 rounded-xl font-bold hover:bg-opacity-90 shadow-sm transition whitespace-nowrap">
+              <button onClick={handleSubscriptionPayment} className="w-full md:w-auto bg-[#4C41A6] text-white px-6 py-2.5 rounded-xl font-bold hover:bg-[#3F3590] shadow-md transition whitespace-nowrap">
                 Pay ₹2000 →
               </button>
             </div>
           )}
 
           {/* HEADER SECTION */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+          <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
             <div>
-              <h1 className="text-3xl font-extrabold text-[#322B7B] tracking-tight">Doctor Dashboard</h1>
-              <p className="text-slate-600 mt-1 font-medium">Welcome back, {doctorName || "Loading..."}</p>
-              <p className="text-xs text-slate-400 mt-1">Logged in as: {doctorPhone}</p>
+              <h1 className="text-4xl font-extrabold text-[#322B7B] tracking-tight">Doctor Dashboard</h1>
+              <p className="text-slate-800 mt-3 text-sm font-bold">Welcome back, {doctorName || "Loading..."}</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Logged in as: <span className="text-[#5E5AA8] font-semibold">{doctorPhone}</span>
+              </p>
             </div>
-            
-            {/* Mobile Menu Buttons (Hidden on Desktop) */}
+
+            {/* Desktop quick actions */}
+            <div className="hidden md:flex items-center gap-5 mt-1">
+              <button onClick={() => setShowScheduleModal(true)} className="text-sm font-bold text-[#4C41A6] border border-[#4C41A6] px-5 py-2 rounded-full hover:bg-[#4C41A6]/5 transition">
+                Manage Schedule
+              </button>
+              <a href="/" className="text-sm font-bold text-slate-800 hover:text-[#4C41A6] transition">Homepage</a>
+              <span className="w-px h-5 bg-slate-300" />
+              <button onClick={onLogout} className="text-sm font-bold text-[#E5456B] hover:text-rose-700 transition">Sign Out</button>
+            </div>
+
+            {/* Mobile Menu Buttons */}
             <div className="flex md:hidden gap-3 w-full">
               <button onClick={() => setShowScheduleModal(true)} className="flex-1 text-sm font-bold bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-xl">Schedule</button>
               <button onClick={onLogout} className="flex-1 text-sm font-bold bg-rose-50 text-rose-600 px-4 py-2 rounded-xl">Sign Out</button>
@@ -287,15 +344,15 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
           {/* TABS */}
           <div className="flex gap-8 mb-6 border-b border-slate-200">
-            <button 
-              onClick={() => setActiveTab('queue')} 
-              className={`text-sm md:text-base font-bold pb-3 transition border-b-2 ${activeTab === 'queue' ? 'text-[#5E5AA8] border-[#5E5AA8]' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+            <button
+              onClick={() => setActiveTab('queue')}
+              className={`text-sm font-bold pb-3 -mb-px transition border-b-2 ${activeTab === 'queue' ? 'text-[#4C41A6] border-[#4C41A6]' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
             >
               Appointment Queue
             </button>
-            <button 
-              onClick={() => setActiveTab('earnings')} 
-              className={`text-sm md:text-base font-bold pb-3 transition border-b-2 ${activeTab === 'earnings' ? 'text-[#5E5AA8] border-[#5E5AA8]' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+            <button
+              onClick={() => setActiveTab('earnings')}
+              className={`text-sm font-bold pb-3 -mb-px transition border-b-2 ${activeTab === 'earnings' ? 'text-[#4C41A6] border-[#4C41A6]' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
             >
               Earnings
             </button>
@@ -305,14 +362,16 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           {activeTab === 'queue' && (
             <>
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-bold text-slate-800">Your Queue</h2>
+                <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                  Your Queue <span className="text-slate-400">·</span>
+                </h2>
                 {appointments.some(a => a.status === "Completed") && (
-                  <button onClick={clearCompleted} className="text-xs font-bold text-slate-500 bg-[#EBEBF3] px-4 py-2 rounded-full hover:bg-slate-200 transition">
-                    🗑️ Clear Completed
+                  <button onClick={clearCompleted} className="flex items-center gap-2 text-xs font-bold text-[#4C41A6] bg-[#EEEBFB] px-4 py-2 rounded-full hover:bg-[#E3DFF8] transition">
+                    <TrashIcon /> Clear Completed
                   </button>
                 )}
               </div>
-              
+
               {loading ? (
                 <p className="text-slate-500 font-medium">Loading appointments...</p>
               ) : error ? (
@@ -329,20 +388,21 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                   {appointments.map((appt) => {
                     const isPending = appt.status === "Pending";
                     const isCompleted = appt.status === "Completed";
-                    
+                    const hasActions = (isPending && !appt.rescheduleRequested) || appt.status === "Upcoming";
+
                     return (
-                      <div key={appt.id} className={`p-5 rounded-2xl border transition ${
-                        isPending ? 'bg-[#FFFDF5] border-[#FCE5B5]' : 
-                        isCompleted ? 'bg-slate-50 border-slate-200 opacity-75' : 
-                        'bg-white border-slate-200'
+                      <div key={appt.id} className={`bg-white rounded-2xl border border-[#E6E3F5] border-l-[6px] border-l-[#C9C3EE] shadow-[0_2px_10px_rgba(76,65,166,0.07)] px-5 py-4 transition ${
+                        isCompleted ? 'opacity-70' : ''
                       }`}>
-                        <div className="flex justify-between items-start">
+                        <div className="flex justify-between items-center gap-4">
                           {/* Left Side: Patient Info */}
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="text-lg font-bold text-slate-800">{appt.patient}</h3>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              <h3 className="text-lg font-extrabold text-[#2B2468]">{appt.patient}</h3>
                               {isPending && !appt.rescheduleRequested && (
-                                <span className="bg-[#FDE8E9] text-[#D95D5D] text-[10px] px-2.5 py-1 rounded-full font-bold">⚠️ Awaiting Patient Action</span>
+                                <span className="inline-flex items-center gap-1 bg-[#FDE4EA] text-[#D6456B] border border-[#F9C9D4] text-[10px] px-2.5 py-1 rounded-full font-bold">
+                                  <WarnIcon /> Awaiting Patient Action
+                                </span>
                               )}
                               {appt.rescheduleRequested && (
                                 <span className="bg-rose-100 text-rose-700 text-[10px] px-2.5 py-1 rounded-full font-bold">Emergency</span>
@@ -351,50 +411,52 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                                 <span className="bg-slate-200 text-slate-700 text-[10px] px-2.5 py-1 rounded-full font-bold">Completed</span>
                               )}
                             </div>
-                            <p className="text-sm text-slate-500">Phone: {appt.phone || "Not provided"}</p>
-                            
-                            <div className="flex gap-2 mt-3">
-                              <span className="bg-[#F0F2F9] text-[#322B7B] text-xs font-semibold px-2.5 py-1 rounded-md">
+                            <p className="text-xs text-slate-600">Phone: {appt.phone || "Not provided"}</p>
+
+                            <div className="flex items-center gap-2 mt-3">
+                              <span className="bg-[#EEEBFB] text-[#4C41A6] text-xs font-bold px-3 py-1.5 rounded-lg">
                                 {appt.dayLabel} at {appt.slot}
                               </span>
-                              <span className="bg-[#F0F2F9] text-[#322B7B] text-xs font-semibold px-2.5 py-1 rounded-md">
+                              <span className="w-px h-4 bg-slate-300" />
+                              <span className="bg-[#EEEBFB] text-[#4C41A6] text-xs font-bold px-3 py-1.5 rounded-lg">
                                 Token #{appt.token}
                               </span>
                             </div>
 
                             {appt.reason && (
-                              <div className="mt-3 text-sm text-slate-600">
-                                <span className="font-semibold text-slate-800">Reason:</span> {appt.reason}
+                              <div className="mt-3 inline-block border border-slate-200 bg-white rounded-xl px-3.5 py-2 text-xs text-slate-600 shadow-sm">
+                                <span className="font-bold text-slate-800">Reason:</span>{" "}
+                                <span className="font-semibold ml-1">{appt.reason}</span>
                               </div>
                             )}
                           </div>
 
                           {/* Right Side: Payment & Actions */}
-                          <div className="flex flex-col items-end gap-3">
-                            {/* Payment Status */}
-                            <span className={`text-[11px] px-3 py-1 rounded-full font-bold border flex items-center gap-1 ${
-                              appt.paymentStatus === "Paid" 
-                                ? 'bg-[#EBF8EE] text-[#2E7D32] border-[#C8E6C9]' 
+                          <div className="flex flex-col items-end gap-3 shrink-0">
+                            <span className={`inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full font-bold border ${
+                              appt.paymentStatus === "Paid"
+                                ? 'bg-[#E8F7EE] text-[#2E7D32] border-[#C8E6C9]'
                                 : 'bg-[#FFF3E0] text-[#E65100] border-[#FFE0B2]'
                             }`}>
-                              {appt.paymentStatus === "Paid" ? "💳 Paid" : "💵 To be paid"}
+                              {appt.paymentStatus === "Paid" ? <><CardIcon /> Paid</> : "💵 To be paid"}
                             </span>
 
-                            {/* Action Buttons */}
-                            <div className="flex gap-2 mt-2">
-                              {isPending && !appt.rescheduleRequested && (
-                                <>
-                                  <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-[#322B7B] text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-opacity-90 shadow-sm">Accept</button>
-                                  <button onClick={() => updateStatus(appt.id, "Cancelled")} className="bg-white border border-slate-300 text-slate-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-50">Decline</button>
-                                </>
-                              )}
-                              {appt.status === "Upcoming" && (
-                                <>
-                                  <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-[#EBF8EE] border border-[#C8E6C9] text-[#2E7D32] px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-[#d1f0d5]">Complete</button>
-                                  <button onClick={() => requestReschedule(appt)} className="bg-rose-50 border border-rose-200 text-rose-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-100">Reschedule</button>
-                                </>
-                              )}
-                            </div>
+                            {hasActions && (
+                              <div className="flex gap-2">
+                                {isPending && !appt.rescheduleRequested && (
+                                  <>
+                                    <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-[#4C41A6] text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-[#3F3590] shadow-sm">Accept</button>
+                                    <button onClick={() => updateStatus(appt.id, "Cancelled")} className="bg-white border border-slate-300 text-slate-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-50">Decline</button>
+                                  </>
+                                )}
+                                {appt.status === "Upcoming" && (
+                                  <>
+                                    <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-[#E8F7EE] border border-[#C8E6C9] text-[#2E7D32] px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-[#d1f0d5]">Complete</button>
+                                    <button onClick={() => requestReschedule(appt)} className="bg-rose-50 border border-rose-200 text-rose-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-100">Reschedule</button>
+                                  </>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -407,22 +469,22 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
           {/* --- EARNINGS TAB --- */}
           {activeTab === 'earnings' && (
-            <div className="animate-fade-in">
-              <div className="flex bg-slate-200/50 p-1 rounded-xl w-max mb-6">
-                <button onClick={() => setEarningsView('daily')} className={`px-6 py-2 rounded-lg text-sm font-bold transition ${earningsView === 'daily' ? 'bg-white text-[#322B7B] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Daily</button>
-                <button onClick={() => setEarningsView('monthly')} className={`px-6 py-2 rounded-lg text-sm font-bold transition ${earningsView === 'monthly' ? 'bg-white text-[#322B7B] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Monthly</button>
+            <div>
+              <div className="flex bg-[#EEEBFB] p-1 rounded-xl w-max mb-6">
+                <button onClick={() => setEarningsView('daily')} className={`px-6 py-2 rounded-lg text-sm font-bold transition ${earningsView === 'daily' ? 'bg-white text-[#4C41A6] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Daily</button>
+                <button onClick={() => setEarningsView('monthly')} className={`px-6 py-2 rounded-lg text-sm font-bold transition ${earningsView === 'monthly' ? 'bg-white text-[#4C41A6] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Monthly</button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div className="bg-[#322B7B] text-white p-8 rounded-3xl shadow-lg relative overflow-hidden">
+                <div className="bg-gradient-to-br from-[#4C41A6] to-[#3B3188] text-white p-8 rounded-3xl shadow-lg relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-6 opacity-10 text-8xl font-serif">₹</div>
                   <p className="text-indigo-200 font-medium mb-1">Total Earnings ({earningsView})</p>
                   <h3 className="text-5xl font-black tracking-tight">₹{totalEarnings}</h3>
                 </div>
-                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 relative">
+                <div className="bg-white p-8 rounded-3xl shadow-sm border border-[#E6E3F5] relative">
                   <div className="absolute top-0 right-0 p-6 opacity-5 text-8xl">👥</div>
                   <p className="text-slate-500 font-medium mb-1">Patients Seen ({earningsView})</p>
-                  <h3 className="text-5xl font-black tracking-tight text-slate-800">{patientCount}</h3>
+                  <h3 className="text-5xl font-black tracking-tight text-[#2B2468]">{patientCount}</h3>
                 </div>
               </div>
 
@@ -432,11 +494,11 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                   <p className="text-slate-400 font-medium">No earnings recorded for this period yet.</p>
                 </div>
               ) : (
-                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-sm border border-[#E6E3F5] overflow-hidden">
                   {earningsList.map((appt, index) => (
                     <div key={appt.id} className={`p-5 flex justify-between items-center ${index !== earningsList.length - 1 ? 'border-b border-slate-100' : ''}`}>
                       <div>
-                        <p className="font-bold text-slate-800">{appt.patient}</p>
+                        <p className="font-bold text-[#2B2468]">{appt.patient}</p>
                         <p className="text-sm text-slate-500">{appt.dayLabel} · Token #{appt.token}</p>
                       </div>
                       <div className="text-right">
@@ -455,10 +517,10 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
       {/* SCHEDULE MODAL */}
       {showScheduleModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
-            <h3 className="text-2xl font-serif text-slate-800 mb-4">Manage Availability</h3>
-            
+            <h3 className="text-2xl font-extrabold text-[#322B7B] mb-4">Manage Availability</h3>
+
             <div className="mb-5">
               <label className="block text-sm font-bold text-slate-700 mb-2">Working Days</label>
               <div className="flex flex-wrap gap-2">
@@ -472,8 +534,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                       setSchedule({ ...schedule, workingDays: newDays });
                     }}
                     className={`px-3 py-1.5 rounded-full text-sm font-bold border transition ${
-                      schedule.workingDays.includes(day) 
-                        ? "bg-[#322B7B] text-white border-[#322B7B] shadow-sm" 
+                      schedule.workingDays.includes(day)
+                        ? "bg-[#4C41A6] text-white border-[#4C41A6] shadow-sm"
                         : "bg-white text-slate-500 border-slate-300 hover:bg-slate-50"
                     }`}
                   >
@@ -486,17 +548,17 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             <div className="flex gap-4 mb-5">
               <div className="flex-1">
                 <label className="block text-sm font-bold text-slate-700 mb-2">Start Time</label>
-                <input type="time" value={schedule.startTime} onChange={(e) => setSchedule({...schedule, startTime: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#322B7B]" />
+                <input type="time" value={schedule.startTime} onChange={(e) => setSchedule({ ...schedule, startTime: e.target.value })} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" />
               </div>
               <div className="flex-1">
                 <label className="block text-sm font-bold text-slate-700 mb-2">End Time</label>
-                <input type="time" value={schedule.endTime} onChange={(e) => setSchedule({...schedule, endTime: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#322B7B]" />
+                <input type="time" value={schedule.endTime} onChange={(e) => setSchedule({ ...schedule, endTime: e.target.value })} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" />
               </div>
             </div>
 
             <div className="mb-5">
               <label className="block text-sm font-bold text-slate-700 mb-2">Slot Duration</label>
-              <select value={schedule.slotDuration} onChange={(e) => setSchedule({...schedule, slotDuration: Number(e.target.value)})} className="w-full border border-slate-300 p-2.5 rounded-xl bg-white outline-none focus:border-[#322B7B]">
+              <select value={schedule.slotDuration} onChange={(e) => setSchedule({ ...schedule, slotDuration: Number(e.target.value) })} className="w-full border border-slate-300 p-2.5 rounded-xl bg-white outline-none focus:border-[#4C41A6]">
                 <option value={15}>15 Minutes</option>
                 <option value={30}>30 Minutes</option>
                 <option value={45}>45 Minutes</option>
@@ -504,16 +566,16 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
               </select>
             </div>
 
-            <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+            <div className="mb-8 p-4 bg-[#F7F6FC] rounded-2xl border border-[#E6E3F5]">
               <label className="block text-sm font-bold text-slate-700 mb-2">Block a Date (Mark as Full)</label>
               <div className="flex gap-2 mb-3">
-                <input type="date" value={dateToBlock} onChange={(e) => setDateToBlock(e.target.value)} className="flex-1 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#322B7B] text-sm" />
+                <input type="date" value={dateToBlock} onChange={(e) => setDateToBlock(e.target.value)} className="flex-1 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6] text-sm" />
                 <button onClick={() => {
-                    if (dateToBlock && !schedule.blockedDates.includes(dateToBlock)) {
-                      setSchedule({ ...schedule, blockedDates: [...schedule.blockedDates, dateToBlock] });
-                      setDateToBlock("");
-                    }
-                  }} className="bg-[#322B7B] text-white px-4 rounded-xl font-bold hover:bg-opacity-90 text-sm">Block</button>
+                  if (dateToBlock && !schedule.blockedDates.includes(dateToBlock)) {
+                    setSchedule({ ...schedule, blockedDates: [...schedule.blockedDates, dateToBlock] });
+                    setDateToBlock("");
+                  }
+                }} className="bg-[#4C41A6] text-white px-4 rounded-xl font-bold hover:bg-[#3F3590] text-sm">Block</button>
               </div>
               {schedule.blockedDates.length > 0 && (
                 <div className="flex flex-wrap gap-2">
@@ -529,7 +591,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
             <div className="flex gap-3">
               <button onClick={() => setShowScheduleModal(false)} className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
-              <button onClick={saveSchedule} className="flex-1 bg-[#322B7B] text-white py-3 rounded-xl font-bold hover:bg-opacity-90 shadow-sm transition">Save Changes</button>
+              <button onClick={saveSchedule} className="flex-1 bg-[#4C41A6] text-white py-3 rounded-xl font-bold hover:bg-[#3F3590] shadow-sm transition">Save Changes</button>
             </div>
           </div>
         </div>
