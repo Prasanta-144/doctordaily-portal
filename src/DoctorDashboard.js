@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db } from "./firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
@@ -65,6 +66,15 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     isDue: false
   });
 
+  // --- EDIT PROFILE STATE ---
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '', clinicName: '', clinicAddress: '', mapLocation: '', consultationFee: 0
+  });
+  const [editPhoto, setEditPhoto] = useState(null);
+  const [editPhotoPreview, setEditPhotoPreview] = useState(null);
+  const [editLoading, setEditLoading] = useState(false);
+
   // Schedule State
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [dateToBlock, setDateToBlock] = useState("");
@@ -99,6 +109,16 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         setDoctorId(doctorDoc.id);
         setDoctorName(doctorData.name);
         setDoctorFee(doctorData.consultationFee || 500);
+        
+        // Populate Edit Form
+        setEditForm({
+          name: doctorData.name || '',
+          clinicName: doctorData.clinicName || '',
+          clinicAddress: doctorData.clinicAddress || '',
+          mapLocation: doctorData.mapLocation || '',
+          consultationFee: doctorData.consultationFee || 500
+        });
+        setEditPhotoPreview(doctorData.photoUrl || null);
 
         // CALCULATE SUBSCRIPTION STATUS
         if (doctorData.trialEndsAt) {
@@ -150,6 +170,51 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
     fetchDoctorData();
   }, [doctorPhone, onLogout]);
+
+  // --- EDIT PROFILE HANDLER ---
+  const handleEditPhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setEditPhoto(file);
+      setEditPhotoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setEditLoading(true);
+    try {
+      let photoUrl = editPhotoPreview; // Keep old URL by default
+
+      // 1. Upload new photo if selected
+      if (editPhoto) {
+        const storage = getStorage();
+        const storageRef = ref(storage, `doctor_photos/${doctorId}_profile.jpg`);
+        await uploadBytes(storageRef, editPhoto);
+        photoUrl = await getDownloadURL(storageRef);
+      }
+
+      // 2. Update Firestore
+      await updateDoc(doc(db, "doctors", doctorId), {
+        name: editForm.name,
+        clinicName: editForm.clinicName,
+        clinicAddress: editForm.clinicAddress,
+        mapLocation: editForm.mapLocation,
+        consultationFee: Number(editForm.consultationFee),
+        photoUrl: photoUrl
+      });
+
+      // 3. Update local state
+      setDoctorName(editForm.name);
+      setDoctorFee(Number(editForm.consultationFee));
+      setShowEditModal(false);
+      alert("Profile updated successfully!");
+
+    } catch (error) {
+      alert("Error updating profile: " + error.message);
+    }
+    setEditLoading(false);
+  };
 
   // --- SUBSCRIPTION PAYMENT HANDLER ---
   const handleSubscriptionPayment = async () => {
@@ -204,7 +269,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     } catch (error) { alert("Error updating: " + error.message); }
   };
 
-  // --- ADDED BACK: saveSchedule function ---
   const saveSchedule = async () => {
     if (!doctorId) return;
     try {
@@ -215,18 +279,14 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   };
 
   const clearCompleted = async () => {
-    // Only get completed appointments that haven't already been cleared
     const completedAppts = appointments.filter(a => a.status === "Completed" && !a.clearedByDoctor);
     if (completedAppts.length === 0) return;
 
     try {
-      // Update all of them in Firestore simultaneously
       const promises = completedAppts.map(appt =>
         updateDoc(doc(db, "appointments", appt.id), { clearedByDoctor: true })
       );
       await Promise.all(promises);
-
-      // Update local state to flag them as cleared
       setAppointments(prev => prev.map(a =>
         a.status === "Completed" ? { ...a, clearedByDoctor: true } : a
       ));
@@ -259,8 +319,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   };
 
   const { total: totalEarnings, count: patientCount, appointments: earningsList } = calculateEarnings();
-
-  // --- FIXED: Create a filtered list for the Queue UI ---
   const displayedAppointments = appointments.filter(a => !a.clearedByDoctor);
 
   // --- LAYOUT ---
@@ -270,7 +328,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
       {/* LEFT SIDEBAR */}
       <aside className="w-64 bg-gradient-to-b from-[#4C41A6] to-[#3B3188] hidden md:flex flex-col justify-between shadow-xl z-20 relative overflow-hidden">
         <div className="relative z-10">
-          {/* Logo */}
           <div className="px-5 pt-6 pb-5 flex items-center gap-3">
             <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center p-1.5 shadow-sm">
               <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
@@ -278,10 +335,12 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             <span className="text-xl font-extrabold text-white tracking-tight">DoctorDaily</span>
           </div>
 
-          {/* Navigation */}
           <nav className="px-4 mt-2 space-y-1.5">
             <button className="w-full flex items-center gap-3 px-4 py-3 bg-white/15 text-white rounded-xl text-sm font-bold transition">
               <DashboardIcon /> Dashboard
+            </button>
+            <button onClick={() => setShowEditModal(true)} className="w-full flex items-center gap-3 px-4 py-3 text-white/90 hover:bg-white/10 rounded-xl text-sm font-bold transition">
+              <span className="text-lg">✏️</span> Edit Profile
             </button>
             <button onClick={() => setShowScheduleModal(true)} className="w-full flex items-center gap-3 px-4 py-3 text-white/90 hover:bg-white/10 rounded-xl text-sm font-bold transition">
               <CalendarIcon /> Manage Schedule
@@ -298,7 +357,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           </nav>
         </div>
 
-        {/* Watermark at bottom */}
         <div className="relative z-0 flex justify-start pl-4 pb-4 opacity-[0.12] pointer-events-none translate-y-4">
           <CalendarPlusWatermark />
         </div>
@@ -347,7 +405,10 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             </div>
 
             {/* Desktop quick actions */}
-            <div className="hidden md:flex items-center gap-5 mt-1">
+            <div className="hidden md:flex items-center gap-4 mt-1">
+              <button onClick={() => setShowEditModal(true)} className="text-sm font-bold text-slate-600 hover:text-[#4C41A6] transition">
+                Edit Profile
+              </button>
               <button onClick={() => setShowScheduleModal(true)} className="text-sm font-bold text-[#4C41A6] border border-[#4C41A6] px-5 py-2 rounded-full hover:bg-[#4C41A6]/5 transition">
                 Manage Schedule
               </button>
@@ -358,6 +419,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
             {/* Mobile Menu Buttons */}
             <div className="flex md:hidden gap-3 w-full">
+              <button onClick={() => setShowEditModal(true)} className="flex-1 text-sm font-bold bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-xl">Edit Profile</button>
               <button onClick={() => setShowScheduleModal(true)} className="flex-1 text-sm font-bold bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-xl">Schedule</button>
               <button onClick={onLogout} className="flex-1 text-sm font-bold bg-rose-50 text-rose-600 px-4 py-2 rounded-xl">Sign Out</button>
             </div>
@@ -386,7 +448,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
                   Your Queue <span className="text-slate-400">·</span>
                 </h2>
-                {/* Only show button if there are displayed completed appointments */}
                 {displayedAppointments.some(a => a.status === "Completed") && (
                   <button onClick={clearCompleted} className="flex items-center gap-2 text-xs font-bold text-[#4C41A6] bg-[#EEEBFB] px-4 py-2 rounded-full hover:bg-[#E3DFF8] transition">
                     <TrashIcon /> Clear Completed
@@ -407,7 +468,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 </div>
               ) : (
                 <div className="grid gap-4">
-                  {/* Map over displayedAppointments instead of appointments */}
                   {displayedAppointments.map((appt) => {
                     const isPending = appt.status === "Pending";
                     const isCompleted = appt.status === "Completed";
@@ -418,26 +478,19 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                         isCompleted ? 'opacity-70' : ''
                       }`}>
                         <div className="flex justify-between items-center gap-4">
-                          {/* Left Side: Patient Info */}
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               <h3 className="text-lg font-extrabold text-[#2B2468]">{appt.patient}</h3>
-                              
-                              {/* 1. Pending Approval */}
                               {isPending && !appt.rescheduleRequested && (
                                 <span className="inline-flex items-center gap-1 bg-[#FDE4EA] text-[#D6456B] border border-[#F9C9D4] text-[10px] px-2.5 py-1 rounded-full font-bold">
                                   <WarnIcon /> Awaiting Patient Action
                                 </span>
                               )}
-                              
-                              {/* 2. Awaiting Reschedule */}
                               {appt.rescheduleRequested && (
                                 <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-2.5 py-1 rounded-full font-bold">
                                   <WarnIcon /> Awaiting Reschedule
                                 </span>
                               )}
-                              
-                              {/* 3. Completed */}
                               {isCompleted && (
                                 <span className="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] px-2.5 py-1 rounded-full font-bold">Completed</span>
                               )}
@@ -462,9 +515,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                             )}
                           </div>
 
-                          {/* Right Side: Payment & Actions */}
                           <div className="flex flex-col items-end gap-3 shrink-0">
-                            
                             <span className={`inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full font-bold border ${
                               appt.paymentStatus === "Paid"
                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -550,6 +601,93 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
         </div>
       </main>
+
+      {/* --- EDIT PROFILE MODAL --- */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
+            <h3 className="text-2xl font-extrabold text-[#322B7B] mb-4">Edit Profile</h3>
+
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              
+              {/* Photo Upload */}
+              <div className="flex flex-col items-center mb-4">
+                <div className="w-24 h-24 rounded-full border-4 border-slate-100 overflow-hidden bg-slate-50 flex items-center justify-center mb-3">
+                  {editPhotoPreview ? (
+                    <img src={editPhotoPreview} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-3xl text-slate-300">📷</span>
+                  )}
+                </div>
+                <label className="text-sm font-bold text-[#4C41A6] cursor-pointer hover:underline">
+                  Change Photo
+                  <input type="file" accept="image/*" onChange={handleEditPhotoChange} className="hidden" />
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Doctor Name</label>
+                <input 
+                  type="text" 
+                  value={editForm.name} 
+                  onChange={(e) => setEditForm({...editForm, name: e.target.value})} 
+                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Clinic Name</label>
+                <input 
+                  type="text" 
+                  value={editForm.clinicName} 
+                  onChange={(e) => setEditForm({...editForm, clinicName: e.target.value})} 
+                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Clinic Address</label>
+                <input 
+                  type="text" 
+                  value={editForm.clinicAddress} 
+                  onChange={(e) => setEditForm({...editForm, clinicAddress: e.target.value})} 
+                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Google Maps Link (Optional)</label>
+                <input 
+                  type="text" 
+                  value={editForm.mapLocation} 
+                  onChange={(e) => setEditForm({...editForm, mapLocation: e.target.value})} 
+                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
+                  placeholder="https://maps.google.com/..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Consultation Fee (₹)</label>
+                <input 
+                  type="number" 
+                  value={editForm.consultationFee} 
+                  onChange={(e) => setEditForm({...editForm, consultationFee: e.target.value})} 
+                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={() => setShowEditModal(false)} className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
+                <button type="submit" disabled={editLoading} className="flex-1 bg-[#4C41A6] text-white py-3 rounded-xl font-bold hover:bg-[#3F3590] shadow-sm transition">
+                  {editLoading ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* SCHEDULE MODAL */}
       {showScheduleModal && (
