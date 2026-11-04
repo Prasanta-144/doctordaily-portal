@@ -88,7 +88,9 @@ export default function App() {
         consultationFee: Number(formData.consultationFee),
         nmcRegistrationId: formData.nmcRegistrationId,
         status: "approved", 
-        active: true        
+        active: true,
+        subscriptionStatus: "trial",
+        trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now        
       });
 
       setStep(4); 
@@ -178,10 +180,10 @@ export default function App() {
             <h3 className="text-xl font-bold mb-2 text-gray-800">Verified Network</h3>
             <p className="text-gray-500 text-sm">We verify every doctor via the NMC registry. Being part of a trusted platform builds instant patient confidence.</p>
           </div>
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 text-center">
-            <div className="text-4xl mb-4">📈</div>
-            <h3 className="text-xl font-bold mb-2 text-gray-800">Zero Setup Cost</h3>
-            <p className="text-gray-500 text-sm">Create your profile for free. No monthly subscription fees. You only pay a small platform fee per confirmed booking.</p>
+                   <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 text-center">
+            <div className="text-4xl mb-4">🎁</div>
+            <h3 className="text-xl font-bold mb-2 text-gray-800">1-Month Free Trial</h3>
+            <p className="text-gray-500 text-sm">Try all premium features free for 30 days. After that, it's just ₹2000/month to keep your practice running smoothly.</p>
           </div>
         </div>
       </section>
