@@ -110,6 +110,9 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [editPhotoPreview, setEditPhotoPreview] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
 
+  // --- NEW: Upload State ---
+  const [uploadingId, setUploadingId] = useState(null);
+
   // Schedule State
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [dateToBlock, setDateToBlock] = useState("");
@@ -297,6 +300,36 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     } catch (error) { alert("Error updating: " + error.message); }
   };
 
+  // --- NEW: PRESCRIPTION UPLOAD HANDLER ---
+  const handlePrescriptionUpload = async (appt, file) => {
+    if (!file) return;
+    setUploadingId(appt.id);
+    
+    try {
+      const storage = getStorage();
+      const fileExtension = file.name.split('.').pop();
+      const storageRef = ref(storage, `prescriptions/${appt.id}.${fileExtension}`);
+      
+      await uploadBytes(storageRef, file);
+      const downloadUrl = await getDownloadURL(storageRef);
+
+      await updateDoc(doc(db, "appointments", appt.id), { 
+        prescriptionUrl: downloadUrl 
+      });
+
+      setAppointments(prev => prev.map(a => 
+        a.id === appt.id ? { ...a, prescriptionUrl: downloadUrl } : a
+      ));
+      
+      alert("Prescription uploaded successfully!");
+
+    } catch (error) {
+      alert("Error uploading prescription: " + error.message);
+    }
+    setUploadingId(null);
+  };
+  // ---------------------------------------
+
   const saveSchedule = async () => {
     if (!doctorId) return;
     try {
@@ -323,20 +356,17 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     }
   };
 
-  // --- NEW: Robust Date Extractor for Old Test Data ---
   const getAppointmentDateStr = (appt) => {
     if (appt.createdAt) {
       const date = appt.createdAt.toDate();
       return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     }
     
-    // Fallback for old test data without createdAt
     if (appt.dayLabel === "Today") {
       const today = new Date();
       return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     }
     
-    // Try to parse "Thu, 5 Nov"
     const parts = appt.dayLabel.split(", ");
     if (parts.length === 2) {
       const datePart = parts[1].split(" "); 
@@ -355,21 +385,15 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     return null; 
   };
 
-  // Earnings Logic (Now using robust date extractor)
   const calculateEarnings = () => {
     const validAppts = appointments.filter(a => a.paymentStatus === "Paid" || a.status === "Completed");
-    
     let filteredAppts = [];
     
     if (earningsView === 'daily') {
-      filteredAppts = validAppts.filter(a => {
-        const dateStr = getAppointmentDateStr(a);
-        return dateStr === selectedDate;
-      });
+      filteredAppts = validAppts.filter(a => getAppointmentDateStr(a) === selectedDate);
     } else {
       const currentMonth = viewDate.getMonth() + 1; 
       const currentYear = viewDate.getFullYear();
-      
       filteredAppts = validAppts.filter(a => {
         const dateStr = getAppointmentDateStr(a);
         if (!dateStr) return false;
@@ -540,8 +564,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                             <span className={`inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full font-bold border ${appt.paymentStatus === "Paid" ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
                               {appt.paymentStatus === "Paid" ? <><CardIcon /> Paid</> : "💵 To be paid"}
                             </span>
-                            {hasActions && (
-                              <div className="flex gap-2">
+                            
+                            <div className="flex gap-2 items-center">
                                 {isPending && !appt.rescheduleRequested && (
                                   <>
                                     <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-[#4C41A6] text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-[#3F3590] shadow-sm transition">Accept</button>
@@ -554,8 +578,30 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                                     <button onClick={() => requestReschedule(appt)} className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-100 transition">Reschedule</button>
                                   </>
                                 )}
-                              </div>
-                            )}
+
+                                {/* --- NEW: PRESCRIPTION UPLOAD BUTTON --- */}
+                                {(appt.status === "Upcoming" || appt.status === "Completed") && (
+                                  <div className="relative">
+                                    {appt.prescriptionUrl ? (
+                                      <a href={appt.prescriptionUrl} target="_blank" rel="noreferrer" className="bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100 transition inline-block">
+                                        View Rx
+                                      </a>
+                                    ) : (
+                                      <label className={`cursor-pointer bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-100 transition ${uploadingId === appt.id ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                        {uploadingId === appt.id ? 'Uploading...' : 'Add Rx'}
+                                        <input 
+                                          type="file" 
+                                          accept=".pdf,image/*" 
+                                          className="hidden" 
+                                          disabled={uploadingId === appt.id}
+                                          onChange={(e) => handlePrescriptionUpload(appt, e.target.files[0])}
+                                        />
+                                      </label>
+                                    )}
+                                  </div>
+                                )}
+                                {/* --------------------------------------- */}
+                            </div>
                           </div>
                         </div>
                       </div>

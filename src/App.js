@@ -310,12 +310,26 @@ export default function App() {
                 <input name="experienceYears" type="number" placeholder="Years of Exp." required onChange={handleInput} className="w-1/3 border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
               </div>
 
-              <select name="specialization" onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none bg-white">
+               <select name="specialization" onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none bg-white">
                 <option value="General Medicine">General Medicine</option>
                 <option value="Cardiology">Cardiology</option>
                 <option value="Pediatrics">Pediatrics</option>
                 <option value="Orthopedics">Orthopedics</option>
                 <option value="Dermatology">Dermatology</option>
+                <option value="ENT (Ear, Nose, Throat)">ENT (Ear, Nose, Throat)</option>
+                <option value="Gynecology & Obstetrics">Gynecology & Obstetrics</option>
+                <option value="Ophthalmology">Ophthalmology</option>
+                <option value="Psychiatry">Psychiatry</option>
+                <option value="Neurology">Neurology</option>
+                <option value="Gastroenterology">Gastroenterology</option>
+                <option value="Pulmonology">Pulmonology</option>
+                <option value="Urology">Urology</option>
+                <option value="Nephrology">Nephrology</option>
+                <option value="Oncology">Oncology</option>
+                <option value="Endocrinology">Endocrinology</option>
+                <option value="Rheumatology">Rheumatology</option>
+                <option value="Dentistry">Dentistry</option>
+                <option value="Physiotherapy">Physiotherapy</option>
               </select>
               
               <input name="clinicName" type="text" placeholder="Clinic / Hospital Name" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
