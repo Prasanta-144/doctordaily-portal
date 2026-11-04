@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"; // <-- NEW
 import { auth, db } from "./firebase";
 import DoctorDashboard from './DoctorDashboard';
 import DoctorLogin from './DoctorLogin';
@@ -17,6 +18,11 @@ export default function App() {
   const [view, setView] = useState('landing'); // 'landing', 'login', 'dashboard'
   const [loggedInPhone, setLoggedInPhone] = useState('');
 
+  // NEW: Photo & Map states
+  const [photo, setPhoto] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [mapLocation, setMapLocation] = useState('');
+
   const [formData, setFormData] = useState({
     name: '', specialization: 'General Medicine', qualifications: '', 
     experienceYears: '', clinicName: '', clinicAddress: '', consultationFee: '', nmcRegistrationId: ''
@@ -27,19 +33,14 @@ export default function App() {
     if (phone.length !== 10) return alert("Enter a 10-digit number");
     setLoading(true);
     try {
-      // Clear old verifier if it exists
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-      }
+      if (window.recaptchaVerifier) window.recaptchaVerifier.clear();
       window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
       const confirmation = await signInWithPhoneNumber(auth, `+91${phone}`, window.recaptchaVerifier);
       window.confirmationResult = confirmation;
       setStep(2);
     } catch (error) {
       alert("Error: " + error.message);
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-      }
+      if (window.recaptchaVerifier) window.recaptchaVerifier.clear();
     }
     setLoading(false);
   };
@@ -55,14 +56,22 @@ export default function App() {
     setLoading(false);
   };
 
+  // NEW: Handle Photo Selection
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setPhoto(file);
+      setPhotoPreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.nmcRegistrationId) return alert("Please enter your NMC Registration Number.");
     setLoading(true);
 
     try {
-      // 1. Verify NMC Number via Apify
-      // MAKE SURE TO PASTE YOUR ACTUAL TOKEN HERE!
+      // 1. Verify NMC Number
       const apifyToken = "PASTE_YOUR_APIFY_TOKEN_HERE"; 
       const response = await fetch(
         `https://api.apify.com/v2/acts/whoareyouanas~nmc-doctor-lookup/run-sync-get-dataset-items?token=${apifyToken}`,
@@ -74,8 +83,6 @@ export default function App() {
       );
 
       const data = await response.json();
-      
-      // TEMPORARY BYPASS: Change `true` to `false` when ready for strict checking
       const isVerified = data && data[0] ? data[0].isValid : true; 
       
       if (!isVerified) {
@@ -84,9 +91,18 @@ export default function App() {
         return; 
       }
 
-      // 2. Save to Firestore
       const user = auth.currentUser;
       
+      // 2. Upload Profile Photo (if selected)
+      let photoUrl = "";
+      if (photo) {
+        const storage = getStorage();
+        const storageRef = ref(storage, `doctor_photos/${user.uid}_profile.jpg`);
+        await uploadBytes(storageRef, photo);
+        photoUrl = await getDownloadURL(storageRef);
+      }
+
+      // 3. Save to Firestore
       await setDoc(doc(db, "doctors", user.uid), {
         uid: user.uid,
         phone: user.phoneNumber,
@@ -101,12 +117,14 @@ export default function App() {
         status: "approved", 
         active: true,
         subscriptionStatus: "trial",
-        trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        photoUrl: photoUrl,         // <-- NEW
+        mapLocation: mapLocation    // <-- NEW
       });
 
       setStep(4); 
     } catch (error) {
-      alert("Verification failed: " + error.message);
+      alert("Registration failed: " + error.message);
     }
     setLoading(false);
   };
@@ -147,10 +165,7 @@ export default function App() {
           <div className="hidden md:flex gap-6 text-sm font-medium text-gray-600 items-center">
             <a href="#features" className="hover:text-brand transition">Why Join?</a>
             <a href="#download" className="hover:text-brand transition">DoctorDaily App</a>
-            <button 
-              onClick={() => setView('login')} 
-              className="border border-brand text-brand px-4 py-1.5 rounded-full font-bold hover:bg-brand hover:text-white transition"
-            >
+            <button onClick={() => setView('login')} className="border border-brand text-brand px-4 py-1.5 rounded-full font-bold hover:bg-brand hover:text-white transition">
               Doctor Login
             </button>
             <a href="#register" className="bg-brand text-white px-4 py-1.5 rounded-full font-bold hover:opacity-80 transition">Register</a>
@@ -207,18 +222,12 @@ export default function App() {
             <p className="text-gray-600 mb-6 leading-relaxed">
               Encourage your patients to download DoctorDaily. They can view your live availability, book instantly, and receive digital tokens right on their phones.
             </p>
-            
             <div className="flex flex-col sm:flex-row items-center gap-6 mt-6">
               <a href="https://github.com/Prasanta-144/mina-app-apks/releases/download/v1/DoctorDaily-v1.apk" className="bg-brand text-white px-8 py-3 rounded-xl flex items-center justify-center font-bold hover:bg-opacity-90 transition shadow-md whitespace-nowrap">
                 Download APK
               </a>
-              
               <div className="flex flex-col items-center">
-                <img 
-                  src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https://github.com/Prasanta-144/mina-app-apks/releases/download/v1/DoctorDaily-v1.apk" 
-                  alt="Scan to download DoctorDaily" 
-                  className="w-24 h-24 rounded-lg shadow-sm border border-gray-200"
-                />
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https://github.com/Prasanta-144/mina-app-apks/releases/download/v1/DoctorDaily-v1.apk" alt="Scan to download DoctorDaily" className="w-24 h-24 rounded-lg shadow-sm border border-gray-200" />
                 <span className="text-xs text-gray-500 mt-2">Scan to download</span>
               </div>
             </div>
@@ -279,6 +288,21 @@ export default function App() {
                 <p className="text-sm text-gray-500">Provide accurate details for patient booking.</p>
               </div>
 
+              {/* NEW: Photo Upload UI */}
+              <div className="flex flex-col items-center mb-4">
+                <div className="w-24 h-24 rounded-full border-4 border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center mb-3">
+                  {photoPreview ? (
+                    <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-3xl text-gray-300">📷</span>
+                  )}
+                </div>
+                <label className="text-sm font-bold text-brand cursor-pointer hover:underline">
+                  Add Profile Photo (Optional)
+                  <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+                </label>
+              </div>
+
               <input name="name" type="text" placeholder="Full Name (e.g. Dr. Anil Sharma)" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
               
               <div className="flex gap-4">
@@ -296,6 +320,18 @@ export default function App() {
               
               <input name="clinicName" type="text" placeholder="Clinic / Hospital Name" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
               <input name="clinicAddress" type="text" placeholder="Full Clinic Address" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
+              
+              {/* NEW: Google Maps UI */}
+              <div className="pt-1">
+                <input 
+                  value={mapLocation} 
+                  onChange={(e) => setMapLocation(e.target.value)} 
+                  placeholder="Google Maps Link (Optional)" 
+                  className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" 
+                />
+                <p className="text-xs text-gray-500 mt-1">Paste your clinic's Google Maps link so patients can find you easily.</p>
+              </div>
+
               <input name="consultationFee" type="number" placeholder="Consultation Fee (₹)" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
               
               <div className="pt-2">
@@ -305,7 +341,7 @@ export default function App() {
               </div>
 
               <button type="submit" disabled={loading} className="w-full bg-brand text-white p-3 rounded-lg font-bold hover:opacity-90 transition mt-4">
-                {loading ? "Verifying Credentials..." : "Submit Application"}
+                {loading ? "Uploading..." : "Submit Application"}
               </button>
             </form>
           )}
