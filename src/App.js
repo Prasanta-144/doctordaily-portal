@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"; // <-- NEW
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db } from "./firebase";
 import DoctorDashboard from './DoctorDashboard';
 import DoctorLogin from './DoctorLogin';
@@ -15,10 +15,10 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   
   // View state for routing
-  const [view, setView] = useState('landing'); // 'landing', 'login', 'dashboard'
+  const [view, setView] = useState('landing');
   const [loggedInPhone, setLoggedInPhone] = useState('');
 
-  // NEW: Photo & Map states
+  // Photo & Map states
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [mapLocation, setMapLocation] = useState('');
@@ -56,7 +56,6 @@ export default function App() {
     setLoading(false);
   };
 
-  // NEW: Handle Photo Selection
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -118,8 +117,8 @@ export default function App() {
         active: true,
         subscriptionStatus: "trial",
         trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        photoUrl: photoUrl,         // <-- NEW
-        mapLocation: mapLocation    // <-- NEW
+        photoUrl: photoUrl,
+        mapLocation: mapLocation
       });
 
       setStep(4); 
