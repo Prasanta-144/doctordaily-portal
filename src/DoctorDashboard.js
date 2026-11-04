@@ -57,6 +57,20 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   // Navigation & View States
   const [activeTab, setActiveTab] = useState('queue');
   const [earningsView, setEarningsView] = useState('daily');
+  
+  // --- NEW: Date Selector for Daily Earnings ---
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]); // Default to Today
+
+  // Generate the last 7 days for the selector
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    return {
+      fullDate: d.toISOString().split('T')[0], // YYYY-MM-DD
+      dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
+      dateNum: d.getDate()
+    };
+  }).reverse(); // Show oldest to newest
 
   // --- SUBSCRIPTION STATE ---
   const [subscription, setSubscription] = useState({
@@ -184,9 +198,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     e.preventDefault();
     setEditLoading(true);
     try {
-      let photoUrl = editPhotoPreview; // Keep old URL by default
+      let photoUrl = editPhotoPreview;
 
-      // 1. Upload new photo if selected
       if (editPhoto) {
         const storage = getStorage();
         const storageRef = ref(storage, `doctor_photos/${doctorId}_profile.jpg`);
@@ -194,7 +207,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         photoUrl = await getDownloadURL(storageRef);
       }
 
-      // 2. Update Firestore
       await updateDoc(doc(db, "doctors", doctorId), {
         name: editForm.name,
         clinicName: editForm.clinicName,
@@ -204,7 +216,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         photoUrl: photoUrl
       });
 
-      // 3. Update local state
       setDoctorName(editForm.name);
       setDoctorFee(Number(editForm.consultationFee));
       setShowEditModal(false);
@@ -225,7 +236,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
       const { orderId, amount } = result.data;
 
       const options = {
-        key: "rzp_test_Tvbffal0a4v3Hu", // YOUR RAZORPAY KEY ID
+        key: "rzp_test_Tvbffal0a4v3Hu",
         amount: amount,
         currency: "INR",
         name: "DoctorDaily",
@@ -298,14 +309,22 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   // Earnings Logic
   const calculateEarnings = () => {
     const validAppts = appointments.filter(a => a.paymentStatus === "Paid" || a.status === "Completed");
-    const today = new Date();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
-
+    
     let filteredAppts = [];
     if (earningsView === 'daily') {
-      filteredAppts = validAppts.filter(a => a.dayLabel === "Today" || a.dayLabel === new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }));
+      filteredAppts = validAppts.filter(a => {
+        if (a.createdAt) {
+          const date = a.createdAt.toDate();
+          const dateStr = date.toISOString().split('T')[0];
+          return dateStr === selectedDate;
+        }
+        // Fallback for older test appointments without createdAt
+        return a.dayLabel === "Today" || a.dayLabel === new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      });
     } else {
+      const today = new Date();
+      const currentMonth = today.getMonth();
+      const currentYear = today.getFullYear();
       filteredAppts = validAppts.filter(a => {
         if (a.createdAt) {
           const date = a.createdAt.toDate();
@@ -562,15 +581,39 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 <button onClick={() => setEarningsView('monthly')} className={`px-6 py-2 rounded-lg text-sm font-bold transition ${earningsView === 'monthly' ? 'bg-white text-[#4C41A6] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Monthly</button>
               </div>
 
+              {/* --- NEW: DATE SELECTOR FOR DAILY VIEW --- */}
+              {earningsView === 'daily' && (
+                <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+                  {last7Days.map(day => (
+                    <button
+                      key={day.fullDate}
+                      onClick={() => setSelectedDate(day.fullDate)}
+                      className={`flex flex-col items-center justify-center min-w-[70px] p-2.5 rounded-xl border transition ${
+                        selectedDate === day.fullDate
+                          ? 'bg-[#4C41A6] text-white border-[#4C41A6] shadow-md'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-xs font-bold uppercase">{day.dayName}</span>
+                      <span className="text-xl font-black">{day.dateNum}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 <div className="bg-gradient-to-br from-[#4C41A6] to-[#3B3188] text-white p-8 rounded-3xl shadow-lg relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-6 opacity-10 text-8xl font-serif">₹</div>
-                  <p className="text-indigo-200 font-medium mb-1">Total Earnings ({earningsView})</p>
+                  <p className="text-indigo-200 font-medium mb-1">
+                    Total Earnings ({earningsView === 'daily' ? new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long' }) : 'This Month'})
+                  </p>
                   <h3 className="text-5xl font-black tracking-tight">₹{totalEarnings}</h3>
                 </div>
                 <div className="bg-white p-8 rounded-3xl shadow-sm border border-[#E6E3F5] relative">
                   <div className="absolute top-0 right-0 p-6 opacity-5 text-8xl">👥</div>
-                  <p className="text-slate-500 font-medium mb-1">Patients Seen ({earningsView})</p>
+                  <p className="text-slate-500 font-medium mb-1">
+                    Patients Seen ({earningsView === 'daily' ? new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long' }) : 'This Month'})
+                  </p>
                   <h3 className="text-5xl font-black tracking-tight text-[#2B2468]">{patientCount}</h3>
                 </div>
               </div>
@@ -609,8 +652,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             <h3 className="text-2xl font-extrabold text-[#322B7B] mb-4">Edit Profile</h3>
 
             <form onSubmit={handleEditSubmit} className="space-y-4">
-              
-              {/* Photo Upload */}
               <div className="flex flex-col items-center mb-4">
                 <div className="w-24 h-24 rounded-full border-4 border-slate-100 overflow-hidden bg-slate-50 flex items-center justify-center mb-3">
                   {editPhotoPreview ? (
