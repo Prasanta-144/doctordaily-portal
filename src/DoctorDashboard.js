@@ -435,8 +435,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                           <div className="flex flex-col items-end gap-3 shrink-0">
                             <span className={`inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full font-bold border ${
                               appt.paymentStatus === "Paid"
-                                ? 'bg-[#E8F7EE] text-[#2E7D32] border-[#C8E6C9]'
-                                : 'bg-[#FFF3E0] text-[#E65100] border-[#FFE0B2]'
+                                ? 'bg-[#E6F6EA] text-[#2B7A33] border-[#A9DAB4]'
+                                : 'bg-[#FFF1DA] text-[#E65100] border-[#FFD8A3]'
                             }`}>
                               {appt.paymentStatus === "Paid" ? <><CardIcon /> Paid</> : "💵 To be paid"}
                             </span>
@@ -451,8 +451,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                                 )}
                                 {appt.status === "Upcoming" && (
                                   <>
-                                    <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-[#E8F7EE] border border-[#C8E6C9] text-[#2E7D32] px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-[#d1f0d5]">Complete</button>
-                                    <button onClick={() => requestReschedule(appt)} className="bg-rose-50 border border-rose-200 text-rose-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-100">Reschedule</button>
+                                    <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-[#E3F5E7] border border-[#B4DFBD] text-[#2B7A33] px-5 py-1.5 rounded-lg text-xs font-bold hover:bg-[#D3EFD9] transition">Complete</button>
+                                    <button onClick={() => requestReschedule(appt)} className="bg-[#FFE9EF] border border-[#FBC1D0] text-[#E0264F] px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-[#FFDCE6] transition">Reschedule</button>
                                   </>
                                 )}
                               </div>
