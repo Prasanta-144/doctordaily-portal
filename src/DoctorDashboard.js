@@ -58,9 +58,9 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [activeTab, setActiveTab] = useState('queue');
   const [earningsView, setEarningsView] = useState('daily');
   
-  // --- NEW: Date Navigation State ---
-  const [viewDate, setViewDate] = useState(new Date()); // Controls the Month/Year view
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]); // YYYY-MM-DD
+  // Date Navigation State
+  const [viewDate, setViewDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Generate days for the selected month
   const getDaysInMonth = (year, month) => {
@@ -84,14 +84,12 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const handlePrevMonth = () => {
     const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1);
     setViewDate(newDate);
-    // Optional: auto-select the 1st of the previous month
     setSelectedDate(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-01`);
   };
 
   const handleNextMonth = () => {
     const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
     setViewDate(newDate);
-    // Optional: auto-select the 1st of the next month
     setSelectedDate(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-01`);
   };
 
@@ -325,31 +323,61 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     }
   };
 
-  // Earnings Logic
+  // --- NEW: Robust Date Extractor for Old Test Data ---
+  const getAppointmentDateStr = (appt) => {
+    if (appt.createdAt) {
+      const date = appt.createdAt.toDate();
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
+    
+    // Fallback for old test data without createdAt
+    if (appt.dayLabel === "Today") {
+      const today = new Date();
+      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    }
+    
+    // Try to parse "Thu, 5 Nov"
+    const parts = appt.dayLabel.split(", ");
+    if (parts.length === 2) {
+      const datePart = parts[1].split(" "); 
+      if (datePart.length === 2) {
+        const day = parseInt(datePart[0]);
+        const monthName = datePart[1];
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const month = monthNames.indexOf(monthName);
+        if (month !== -1 && !isNaN(day)) {
+          const year = new Date().getFullYear(); 
+          return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+      }
+    }
+    
+    return null; 
+  };
+
+  // Earnings Logic (Now using robust date extractor)
   const calculateEarnings = () => {
     const validAppts = appointments.filter(a => a.paymentStatus === "Paid" || a.status === "Completed");
     
     let filteredAppts = [];
+    
     if (earningsView === 'daily') {
       filteredAppts = validAppts.filter(a => {
-        if (a.createdAt) {
-          const date = a.createdAt.toDate();
-          const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-          return dateStr === selectedDate;
-        }
-        return a.dayLabel === "Today" || a.dayLabel === new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+        const dateStr = getAppointmentDateStr(a);
+        return dateStr === selectedDate;
       });
     } else {
-      const currentMonth = viewDate.getMonth();
+      const currentMonth = viewDate.getMonth() + 1; 
       const currentYear = viewDate.getFullYear();
+      
       filteredAppts = validAppts.filter(a => {
-        if (a.createdAt) {
-          const date = a.createdAt.toDate();
-          return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-        }
-        return true;
+        const dateStr = getAppointmentDateStr(a);
+        if (!dateStr) return false;
+        const parts = dateStr.split("-"); 
+        return parseInt(parts[1]) === currentMonth && parseInt(parts[0]) === currentYear;
       });
     }
+    
     const total = filteredAppts.reduce((sum, a) => sum + (a.consultationFee || doctorFee), 0);
     return { total, count: filteredAppts.length, appointments: filteredAppts };
   };
@@ -359,8 +387,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
   return (
     <div className="flex h-screen bg-[#F7F6FC] font-sans overflow-hidden">
-
-      {/* LEFT SIDEBAR */}
       <aside className="w-64 bg-gradient-to-b from-[#4C41A6] to-[#3B3188] hidden md:flex flex-col justify-between shadow-xl z-20 relative overflow-hidden">
         <div className="relative z-10">
           <div className="px-5 pt-6 pb-5 flex items-center gap-3">
@@ -397,11 +423,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
       <main className="flex-1 overflow-y-auto bg-gradient-to-br from-white via-[#F8F7FD] to-[#EFEDFA]">
         <div className="max-w-5xl mx-auto p-6 md:p-10">
-
-          {/* SUBSCRIPTION BANNER */}
           {subscription.isDue && (
             <div className={`mb-8 px-5 py-4 rounded-2xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm ${
               subscription.daysLeft <= 0 ? 'bg-rose-50 border-rose-200' : 'bg-[#F1EFFB] border-[#DDD8F3]'
@@ -429,7 +452,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             </div>
           )}
 
-          {/* HEADER SECTION */}
           <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
             <div>
               <h1 className="text-4xl font-extrabold text-[#322B7B] tracking-tight">Doctor Dashboard</h1>
@@ -454,7 +476,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             </div>
           </div>
 
-          {/* TABS */}
           <div className="flex gap-8 mb-6 border-b border-slate-200">
             <button onClick={() => setActiveTab('queue')} className={`text-sm font-bold pb-3 -mb-px transition border-b-2 ${activeTab === 'queue' ? 'text-[#4C41A6] border-[#4C41A6]' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
               Appointment Queue
@@ -464,7 +485,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             </button>
           </div>
 
-          {/* --- QUEUE TAB --- */}
           {activeTab === 'queue' && (
             <>
               <div className="flex justify-between items-center mb-4">
@@ -546,7 +566,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             </>
           )}
 
-          {/* --- EARNINGS TAB --- */}
           {activeTab === 'earnings' && (
             <div>
               <div className="flex bg-[#EEEBFB] p-1 rounded-xl w-max mb-6">
@@ -554,7 +573,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 <button onClick={() => setEarningsView('monthly')} className={`px-6 py-2 rounded-lg text-sm font-bold transition ${earningsView === 'monthly' ? 'bg-white text-[#4C41A6] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Monthly</button>
               </div>
 
-              {/* --- NEW: MONTH/YEAR NAVIGATOR --- */}
               <div className="flex items-center justify-between mb-4">
                 <button onClick={handlePrevMonth} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 font-bold">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
@@ -565,7 +583,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 </button>
               </div>
 
-              {/* --- NEW: DAY SELECTOR FOR THE MONTH --- */}
               {earningsView === 'daily' && (
                 <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
                   {daysInViewMonth.map(day => (
@@ -625,11 +642,9 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
               )}
             </div>
           )}
-
         </div>
       </main>
 
-      {/* --- EDIT PROFILE MODAL --- */}
       {showEditModal && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
@@ -675,7 +690,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       )}
 
-      {/* SCHEDULE MODAL */}
       {showScheduleModal && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
