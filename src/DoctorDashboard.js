@@ -58,19 +58,42 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [activeTab, setActiveTab] = useState('queue');
   const [earningsView, setEarningsView] = useState('daily');
   
-  // --- NEW: Date Selector for Daily Earnings ---
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]); // Default to Today
+  // --- NEW: Date Navigation State ---
+  const [viewDate, setViewDate] = useState(new Date()); // Controls the Month/Year view
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]); // YYYY-MM-DD
 
-  // Generate the last 7 days for the selector
-  const last7Days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    return {
-      fullDate: d.toISOString().split('T')[0], // YYYY-MM-DD
-      dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
-      dateNum: d.getDate()
-    };
-  }).reverse(); // Show oldest to newest
+  // Generate days for the selected month
+  const getDaysInMonth = (year, month) => {
+    const date = new Date(year, month, 1);
+    const days = [];
+    while (date.getMonth() === month) {
+      const fullDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      days.push({
+        fullDate,
+        dayNum: date.getDate(),
+        dayName: date.toLocaleDateString('en-US', { weekday: 'short' })
+      });
+      date.setDate(date.getDate() + 1);
+    }
+    return days;
+  };
+
+  const daysInViewMonth = getDaysInMonth(viewDate.getFullYear(), viewDate.getMonth());
+  const monthYearLabel = viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const handlePrevMonth = () => {
+    const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1);
+    setViewDate(newDate);
+    // Optional: auto-select the 1st of the previous month
+    setSelectedDate(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-01`);
+  };
+
+  const handleNextMonth = () => {
+    const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
+    setViewDate(newDate);
+    // Optional: auto-select the 1st of the next month
+    setSelectedDate(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-01`);
+  };
 
   // --- SUBSCRIPTION STATE ---
   const [subscription, setSubscription] = useState({
@@ -124,7 +147,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         setDoctorName(doctorData.name);
         setDoctorFee(doctorData.consultationFee || 500);
         
-        // Populate Edit Form
         setEditForm({
           name: doctorData.name || '',
           clinicName: doctorData.clinicName || '',
@@ -134,7 +156,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         });
         setEditPhotoPreview(doctorData.photoUrl || null);
 
-        // CALCULATE SUBSCRIPTION STATUS
         if (doctorData.trialEndsAt) {
           const trialEnd = doctorData.trialEndsAt.toDate
             ? doctorData.trialEndsAt.toDate()
@@ -185,7 +206,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     fetchDoctorData();
   }, [doctorPhone, onLogout]);
 
-  // --- EDIT PROFILE HANDLER ---
   const handleEditPhotoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -227,7 +247,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     setEditLoading(false);
   };
 
-  // --- SUBSCRIPTION PAYMENT HANDLER ---
   const handleSubscriptionPayment = async () => {
     try {
       const functions = getFunctions();
@@ -315,16 +334,14 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
       filteredAppts = validAppts.filter(a => {
         if (a.createdAt) {
           const date = a.createdAt.toDate();
-          const dateStr = date.toISOString().split('T')[0];
+          const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
           return dateStr === selectedDate;
         }
-        // Fallback for older test appointments without createdAt
         return a.dayLabel === "Today" || a.dayLabel === new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
       });
     } else {
-      const today = new Date();
-      const currentMonth = today.getMonth();
-      const currentYear = today.getFullYear();
+      const currentMonth = viewDate.getMonth();
+      const currentYear = viewDate.getFullYear();
       filteredAppts = validAppts.filter(a => {
         if (a.createdAt) {
           const date = a.createdAt.toDate();
@@ -340,7 +357,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const { total: totalEarnings, count: patientCount, appointments: earningsList } = calculateEarnings();
   const displayedAppointments = appointments.filter(a => !a.clearedByDoctor);
 
-  // --- LAYOUT ---
   return (
     <div className="flex h-screen bg-[#F7F6FC] font-sans overflow-hidden">
 
@@ -423,20 +439,14 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
               </p>
             </div>
 
-            {/* Desktop quick actions */}
             <div className="hidden md:flex items-center gap-4 mt-1">
-              <button onClick={() => setShowEditModal(true)} className="text-sm font-bold text-slate-600 hover:text-[#4C41A6] transition">
-                Edit Profile
-              </button>
-              <button onClick={() => setShowScheduleModal(true)} className="text-sm font-bold text-[#4C41A6] border border-[#4C41A6] px-5 py-2 rounded-full hover:bg-[#4C41A6]/5 transition">
-                Manage Schedule
-              </button>
+              <button onClick={() => setShowEditModal(true)} className="text-sm font-bold text-slate-600 hover:text-[#4C41A6] transition">Edit Profile</button>
+              <button onClick={() => setShowScheduleModal(true)} className="text-sm font-bold text-[#4C41A6] border border-[#4C41A6] px-5 py-2 rounded-full hover:bg-[#4C41A6]/5 transition">Manage Schedule</button>
               <a href="/" className="text-sm font-bold text-slate-800 hover:text-[#4C41A6] transition">Homepage</a>
               <span className="w-px h-5 bg-slate-300" />
               <button onClick={onLogout} className="text-sm font-bold text-[#E5456B] hover:text-rose-700 transition">Sign Out</button>
             </div>
 
-            {/* Mobile Menu Buttons */}
             <div className="flex md:hidden gap-3 w-full">
               <button onClick={() => setShowEditModal(true)} className="flex-1 text-sm font-bold bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-xl">Edit Profile</button>
               <button onClick={() => setShowScheduleModal(true)} className="flex-1 text-sm font-bold bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-xl">Schedule</button>
@@ -446,16 +456,10 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
           {/* TABS */}
           <div className="flex gap-8 mb-6 border-b border-slate-200">
-            <button
-              onClick={() => setActiveTab('queue')}
-              className={`text-sm font-bold pb-3 -mb-px transition border-b-2 ${activeTab === 'queue' ? 'text-[#4C41A6] border-[#4C41A6]' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
-            >
+            <button onClick={() => setActiveTab('queue')} className={`text-sm font-bold pb-3 -mb-px transition border-b-2 ${activeTab === 'queue' ? 'text-[#4C41A6] border-[#4C41A6]' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
               Appointment Queue
             </button>
-            <button
-              onClick={() => setActiveTab('earnings')}
-              className={`text-sm font-bold pb-3 -mb-px transition border-b-2 ${activeTab === 'earnings' ? 'text-[#4C41A6] border-[#4C41A6]' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
-            >
+            <button onClick={() => setActiveTab('earnings')} className={`text-sm font-bold pb-3 -mb-px transition border-b-2 ${activeTab === 'earnings' ? 'text-[#4C41A6] border-[#4C41A6]' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
               Earnings
             </button>
           </div>
@@ -464,9 +468,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           {activeTab === 'queue' && (
             <>
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                  Your Queue <span className="text-slate-400">·</span>
-                </h2>
+                <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">Your Queue <span className="text-slate-400">·</span></h2>
                 {displayedAppointments.some(a => a.status === "Completed") && (
                   <button onClick={clearCompleted} className="flex items-center gap-2 text-xs font-bold text-[#4C41A6] bg-[#EEEBFB] px-4 py-2 rounded-full hover:bg-[#E3DFF8] transition">
                     <TrashIcon /> Clear Completed
@@ -493,56 +495,31 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                     const hasActions = (isPending && !appt.rescheduleRequested) || appt.status === "Upcoming";
 
                     return (
-                      <div key={appt.id} className={`bg-white rounded-2xl border border-[#E6E3F5] border-l-[6px] border-l-[#C9C3EE] shadow-[0_2px_10px_rgba(76,65,166,0.07)] px-5 py-4 transition ${
-                        isCompleted ? 'opacity-70' : ''
-                      }`}>
+                      <div key={appt.id} className={`bg-white rounded-2xl border border-[#E6E3F5] border-l-[6px] border-l-[#C9C3EE] shadow-[0_2px_10px_rgba(76,65,166,0.07)] px-5 py-4 transition ${isCompleted ? 'opacity-70' : ''}`}>
                         <div className="flex justify-between items-center gap-4">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               <h3 className="text-lg font-extrabold text-[#2B2468]">{appt.patient}</h3>
-                              {isPending && !appt.rescheduleRequested && (
-                                <span className="inline-flex items-center gap-1 bg-[#FDE4EA] text-[#D6456B] border border-[#F9C9D4] text-[10px] px-2.5 py-1 rounded-full font-bold">
-                                  <WarnIcon /> Awaiting Patient Action
-                                </span>
-                              )}
-                              {appt.rescheduleRequested && (
-                                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-2.5 py-1 rounded-full font-bold">
-                                  <WarnIcon /> Awaiting Reschedule
-                                </span>
-                              )}
-                              {isCompleted && (
-                                <span className="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] px-2.5 py-1 rounded-full font-bold">Completed</span>
-                              )}
+                              {isPending && !appt.rescheduleRequested && <span className="inline-flex items-center gap-1 bg-[#FDE4EA] text-[#D6456B] border border-[#F9C9D4] text-[10px] px-2.5 py-1 rounded-full font-bold"><WarnIcon /> Awaiting Patient Action</span>}
+                              {appt.rescheduleRequested && <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-2.5 py-1 rounded-full font-bold"><WarnIcon /> Awaiting Reschedule</span>}
+                              {isCompleted && <span className="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] px-2.5 py-1 rounded-full font-bold">Completed</span>}
                             </div>
                             <p className="text-xs text-slate-600">Phone: {appt.phone || "Not provided"}</p>
-
                             <div className="flex items-center gap-2 mt-3">
-                              <span className="bg-[#EEEBFB] text-[#4C41A6] text-xs font-bold px-3 py-1.5 rounded-lg">
-                                {appt.dayLabel} at {appt.slot}
-                              </span>
+                              <span className="bg-[#EEEBFB] text-[#4C41A6] text-xs font-bold px-3 py-1.5 rounded-lg">{appt.dayLabel} at {appt.slot}</span>
                               <span className="w-px h-4 bg-slate-300" />
-                              <span className="bg-[#EEEBFB] text-[#4C41A6] text-xs font-bold px-3 py-1.5 rounded-lg">
-                                Token #{appt.token}
-                              </span>
+                              <span className="bg-[#EEEBFB] text-[#4C41A6] text-xs font-bold px-3 py-1.5 rounded-lg">Token #{appt.token}</span>
                             </div>
-
                             {appt.reason && (
                               <div className="mt-3 inline-block border border-slate-200 bg-white rounded-xl px-3.5 py-2 text-xs text-slate-600 shadow-sm">
-                                <span className="font-bold text-slate-800">Reason:</span>{" "}
-                                <span className="font-semibold ml-1">{appt.reason}</span>
+                                <span className="font-bold text-slate-800">Reason:</span> <span className="font-semibold ml-1">{appt.reason}</span>
                               </div>
                             )}
                           </div>
-
                           <div className="flex flex-col items-end gap-3 shrink-0">
-                            <span className={`inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full font-bold border ${
-                              appt.paymentStatus === "Paid"
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-amber-50 text-amber-700 border-amber-200'
-                            }`}>
+                            <span className={`inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full font-bold border ${appt.paymentStatus === "Paid" ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
                               {appt.paymentStatus === "Paid" ? <><CardIcon /> Paid</> : "💵 To be paid"}
                             </span>
-
                             {hasActions && (
                               <div className="flex gap-2">
                                 {isPending && !appt.rescheduleRequested && (
@@ -553,12 +530,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                                 )}
                                 {appt.status === "Upcoming" && (
                                   <>
-                                    <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100 transition">
-                                      Complete
-                                    </button>
-                                    <button onClick={() => requestReschedule(appt)} className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-100 transition">
-                                      Reschedule
-                                    </button>
+                                    <button onClick={() => updateStatus(appt.id, "Completed")} className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100 transition">Complete</button>
+                                    <button onClick={() => requestReschedule(appt)} className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-100 transition">Reschedule</button>
                                   </>
                                 )}
                               </div>
@@ -581,10 +554,21 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 <button onClick={() => setEarningsView('monthly')} className={`px-6 py-2 rounded-lg text-sm font-bold transition ${earningsView === 'monthly' ? 'bg-white text-[#4C41A6] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Monthly</button>
               </div>
 
-              {/* --- NEW: DATE SELECTOR FOR DAILY VIEW --- */}
+              {/* --- NEW: MONTH/YEAR NAVIGATOR --- */}
+              <div className="flex items-center justify-between mb-4">
+                <button onClick={handlePrevMonth} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 font-bold">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+                <h3 className="text-lg font-extrabold text-[#2B2468]">{monthYearLabel}</h3>
+                <button onClick={handleNextMonth} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 font-bold">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+              </div>
+
+              {/* --- NEW: DAY SELECTOR FOR THE MONTH --- */}
               {earningsView === 'daily' && (
                 <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-                  {last7Days.map(day => (
+                  {daysInViewMonth.map(day => (
                     <button
                       key={day.fullDate}
                       onClick={() => setSelectedDate(day.fullDate)}
@@ -595,7 +579,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                       }`}
                     >
                       <span className="text-xs font-bold uppercase">{day.dayName}</span>
-                      <span className="text-xl font-black">{day.dateNum}</span>
+                      <span className="text-xl font-black">{day.dayNum}</span>
                     </button>
                   ))}
                 </div>
@@ -605,14 +589,14 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 <div className="bg-gradient-to-br from-[#4C41A6] to-[#3B3188] text-white p-8 rounded-3xl shadow-lg relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-6 opacity-10 text-8xl font-serif">₹</div>
                   <p className="text-indigo-200 font-medium mb-1">
-                    Total Earnings ({earningsView === 'daily' ? new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long' }) : 'This Month'})
+                    Total Earnings ({earningsView === 'daily' ? new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }) : monthYearLabel})
                   </p>
                   <h3 className="text-5xl font-black tracking-tight">₹{totalEarnings}</h3>
                 </div>
                 <div className="bg-white p-8 rounded-3xl shadow-sm border border-[#E6E3F5] relative">
                   <div className="absolute top-0 right-0 p-6 opacity-5 text-8xl">👥</div>
                   <p className="text-slate-500 font-medium mb-1">
-                    Patients Seen ({earningsView === 'daily' ? new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long' }) : 'This Month'})
+                    Patients Seen ({earningsView === 'daily' ? new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }) : monthYearLabel})
                   </p>
                   <h3 className="text-5xl font-black tracking-tight text-[#2B2468]">{patientCount}</h3>
                 </div>
@@ -650,75 +634,36 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
             <h3 className="text-2xl font-extrabold text-[#322B7B] mb-4">Edit Profile</h3>
-
             <form onSubmit={handleEditSubmit} className="space-y-4">
               <div className="flex flex-col items-center mb-4">
                 <div className="w-24 h-24 rounded-full border-4 border-slate-100 overflow-hidden bg-slate-50 flex items-center justify-center mb-3">
-                  {editPhotoPreview ? (
-                    <img src={editPhotoPreview} alt="Preview" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-3xl text-slate-300">📷</span>
-                  )}
+                  {editPhotoPreview ? <img src={editPhotoPreview} alt="Preview" className="w-full h-full object-cover" /> : <span className="text-3xl text-slate-300">📷</span>}
                 </div>
                 <label className="text-sm font-bold text-[#4C41A6] cursor-pointer hover:underline">
                   Change Photo
                   <input type="file" accept="image/*" onChange={handleEditPhotoChange} className="hidden" />
                 </label>
               </div>
-
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Doctor Name</label>
-                <input 
-                  type="text" 
-                  value={editForm.name} 
-                  onChange={(e) => setEditForm({...editForm, name: e.target.value})} 
-                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
-                  required
-                />
+                <input type="text" value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" required />
               </div>
-
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Clinic Name</label>
-                <input 
-                  type="text" 
-                  value={editForm.clinicName} 
-                  onChange={(e) => setEditForm({...editForm, clinicName: e.target.value})} 
-                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
-                />
+                <input type="text" value={editForm.clinicName} onChange={(e) => setEditForm({...editForm, clinicName: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" />
               </div>
-
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Clinic Address</label>
-                <input 
-                  type="text" 
-                  value={editForm.clinicAddress} 
-                  onChange={(e) => setEditForm({...editForm, clinicAddress: e.target.value})} 
-                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
-                />
+                <input type="text" value={editForm.clinicAddress} onChange={(e) => setEditForm({...editForm, clinicAddress: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" />
               </div>
-
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Google Maps Link (Optional)</label>
-                <input 
-                  type="text" 
-                  value={editForm.mapLocation} 
-                  onChange={(e) => setEditForm({...editForm, mapLocation: e.target.value})} 
-                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
-                  placeholder="https://maps.google.com/..."
-                />
+                <input type="text" value={editForm.mapLocation} onChange={(e) => setEditForm({...editForm, mapLocation: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" placeholder="https://maps.google.com/..." />
               </div>
-
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Consultation Fee (₹)</label>
-                <input 
-                  type="number" 
-                  value={editForm.consultationFee} 
-                  onChange={(e) => setEditForm({...editForm, consultationFee: e.target.value})} 
-                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
-                  required
-                />
+                <input type="number" value={editForm.consultationFee} onChange={(e) => setEditForm({...editForm, consultationFee: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" required />
               </div>
-
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setShowEditModal(false)} className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
                 <button type="submit" disabled={editLoading} className="flex-1 bg-[#4C41A6] text-white py-3 rounded-xl font-bold hover:bg-[#3F3590] shadow-sm transition">
@@ -735,31 +680,21 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
             <h3 className="text-2xl font-extrabold text-[#322B7B] mb-4">Manage Availability</h3>
-
             <div className="mb-5">
               <label className="block text-sm font-bold text-slate-700 mb-2">Working Days</label>
               <div className="flex flex-wrap gap-2">
                 {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
-                  <button
-                    key={day}
-                    onClick={() => {
-                      const newDays = schedule.workingDays.includes(day)
-                        ? schedule.workingDays.filter(d => d !== day)
-                        : [...schedule.workingDays, day];
+                  <button key={day} onClick={() => {
+                      const newDays = schedule.workingDays.includes(day) ? schedule.workingDays.filter(d => d !== day) : [...schedule.workingDays, day];
                       setSchedule({ ...schedule, workingDays: newDays });
                     }}
-                    className={`px-3 py-1.5 rounded-full text-sm font-bold border transition ${
-                      schedule.workingDays.includes(day)
-                        ? "bg-[#4C41A6] text-white border-[#4C41A6] shadow-sm"
-                        : "bg-white text-slate-500 border-slate-300 hover:bg-slate-50"
-                    }`}
+                    className={`px-3 py-1.5 rounded-full text-sm font-bold border transition ${schedule.workingDays.includes(day) ? "bg-[#4C41A6] text-white border-[#4C41A6] shadow-sm" : "bg-white text-slate-500 border-slate-300 hover:bg-slate-50"}`}
                   >
                     {day}
                   </button>
                 ))}
               </div>
             </div>
-
             <div className="flex gap-4 mb-5">
               <div className="flex-1">
                 <label className="block text-sm font-bold text-slate-700 mb-2">Start Time</label>
@@ -770,7 +705,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 <input type="time" value={schedule.endTime} onChange={(e) => setSchedule({ ...schedule, endTime: e.target.value })} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" />
               </div>
             </div>
-
             <div className="mb-5">
               <label className="block text-sm font-bold text-slate-700 mb-2">Slot Duration</label>
               <select value={schedule.slotDuration} onChange={(e) => setSchedule({ ...schedule, slotDuration: Number(e.target.value) })} className="w-full border border-slate-300 p-2.5 rounded-xl bg-white outline-none focus:border-[#4C41A6]">
@@ -780,7 +714,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 <option value={60}>60 Minutes</option>
               </select>
             </div>
-
             <div className="mb-8 p-4 bg-[#F7F6FC] rounded-2xl border border-[#E6E3F5]">
               <label className="block text-sm font-bold text-slate-700 mb-2">Block a Date (Mark as Full)</label>
               <div className="flex gap-2 mb-3">
@@ -803,7 +736,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 </div>
               )}
             </div>
-
             <div className="flex gap-3">
               <button onClick={() => setShowScheduleModal(false)} className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
               <button onClick={saveSchedule} className="flex-1 bg-[#4C41A6] text-white py-3 rounded-xl font-bold hover:bg-[#3F3590] shadow-sm transition">Save Changes</button>
