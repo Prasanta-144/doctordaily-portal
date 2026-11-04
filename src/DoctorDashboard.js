@@ -227,26 +227,43 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     <div className="min-h-screen bg-[#FAFAFC] p-6 font-sans">
       <div className="max-w-4xl mx-auto">
         
-        {/* SUBSCRIPTION BANNER */}
+               {/* SUBSCRIPTION BANNER */}
         {subscription.isDue && (
-          <div className={`mb-6 p-4 rounded-2xl border flex justify-between items-center ${
-            subscription.daysLeft <= 0 ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'
+          <div className={`mb-8 p-6 rounded-3xl border shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition ${
+            subscription.daysLeft <= 0 ? 'bg-rose-50 border-rose-200' : 'bg-[#FFF9EA] border-[#FCE5B5]'
           }`}>
-            <div>
-              <h3 className={`font-bold ${subscription.daysLeft <= 0 ? 'text-rose-800' : 'text-amber-800'}`}>
-                {subscription.daysLeft <= 0 ? "⚠️ Subscription Overdue" : "⏳ Payment Due Soon"}
-              </h3>
-              <p className={`text-sm ${subscription.daysLeft <= 0 ? 'text-rose-600' : 'text-amber-600'}`}>
-                {subscription.daysLeft <= 0 
-                  ? "Your free trial has ended. Please pay to avoid suspension of services."
-                  : `Your monthly payment is due in ${subscription.daysLeft} days. Pay within ${subscription.daysLeft} days to avoid suspension.`}
-              </p>
+            <div className="flex items-start gap-4">
+              {/* Icon */}
+              <div className={`p-3 rounded-full mt-1 ${
+                subscription.daysLeft <= 0 ? 'bg-rose-100 text-rose-600' : 'bg-[#FCE5B5] text-amber-700'
+              }`}>
+                <span className="text-xl">{subscription.daysLeft <= 0 ? "⚠️" : "⏳"}</span>
+              </div>
+              
+              {/* Text Content */}
+              <div>
+                <h3 className={`text-lg font-bold ${
+                  subscription.daysLeft <= 0 ? 'text-rose-800' : 'text-amber-900'
+                }`}>
+                  {subscription.daysLeft <= 0 ? "Subscription Overdue" : "Payment Due Soon"}
+                </h3>
+                <p className={`text-sm mt-1 ${
+                  subscription.daysLeft <= 0 ? 'text-rose-600' : 'text-amber-700'
+                }`}>
+                  {subscription.daysLeft <= 0 
+                    ? "Your free trial has ended. Please pay to avoid suspension of services."
+                    : `Your monthly subscription of ₹2000 is due in ${subscription.daysLeft} days. Pay now to avoid service interruption.`}
+                </p>
+              </div>
             </div>
+            
+            {/* Button */}
             <button 
               onClick={handleSubscriptionPayment}
-              className="bg-brand text-white px-6 py-2.5 rounded-xl font-bold hover:bg-opacity-90 shadow-sm whitespace-nowrap"
+              className="w-full md:w-auto bg-brand text-white px-8 py-3 rounded-xl font-bold hover:bg-opacity-90 shadow-md transition whitespace-nowrap flex items-center justify-center gap-2"
             >
               Pay ₹2000
+              <span>→</span>
             </button>
           </div>
         )}
