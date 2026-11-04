@@ -27,13 +27,19 @@ export default function App() {
     if (phone.length !== 10) return alert("Enter a 10-digit number");
     setLoading(true);
     try {
+      // Clear old verifier if it exists
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+      }
       window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
       const confirmation = await signInWithPhoneNumber(auth, `+91${phone}`, window.recaptchaVerifier);
       window.confirmationResult = confirmation;
       setStep(2);
     } catch (error) {
       alert("Error: " + error.message);
-      window.recaptchaVerifier.clear();
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+      }
     }
     setLoading(false);
   };
@@ -55,7 +61,9 @@ export default function App() {
     setLoading(true);
 
     try {
-      const apifyToken = "PASTE_YOUR_APIFY_TOKEN_HERE"; // Make sure your token is here
+      // 1. Verify NMC Number via Apify
+      // MAKE SURE TO PASTE YOUR ACTUAL TOKEN HERE!
+      const apifyToken = "PASTE_YOUR_APIFY_TOKEN_HERE"; 
       const response = await fetch(
         `https://api.apify.com/v2/acts/whoareyouanas~nmc-doctor-lookup/run-sync-get-dataset-items?token=${apifyToken}`,
         {
@@ -66,6 +74,8 @@ export default function App() {
       );
 
       const data = await response.json();
+      
+      // TEMPORARY BYPASS: Change `true` to `false` when ready for strict checking
       const isVerified = data && data[0] ? data[0].isValid : true; 
       
       if (!isVerified) {
@@ -74,6 +84,7 @@ export default function App() {
         return; 
       }
 
+      // 2. Save to Firestore
       const user = auth.currentUser;
       
       await setDoc(doc(db, "doctors", user.uid), {
@@ -90,7 +101,7 @@ export default function App() {
         status: "approved", 
         active: true,
         subscriptionStatus: "trial",
-        trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now        
+        trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
       });
 
       setStep(4); 
@@ -102,7 +113,7 @@ export default function App() {
 
   const handleInput = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  // --- 2. ROUTING LOGIC (Must be placed after all hooks) ---
+  // --- 2. ROUTING LOGIC ---
   const urlParams = new URLSearchParams(window.location.search);
   const verifyId = urlParams.get('verify');
   
@@ -180,7 +191,7 @@ export default function App() {
             <h3 className="text-xl font-bold mb-2 text-gray-800">Verified Network</h3>
             <p className="text-gray-500 text-sm">We verify every doctor via the NMC registry. Being part of a trusted platform builds instant patient confidence.</p>
           </div>
-                   <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 text-center">
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 text-center">
             <div className="text-4xl mb-4">🎁</div>
             <h3 className="text-xl font-bold mb-2 text-gray-800">1-Month Free Trial</h3>
             <p className="text-gray-500 text-sm">Try all premium features free for 30 days. After that, it's just ₹2000/month to keep your practice running smoothly.</p>
