@@ -399,14 +399,22 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               <h3 className="text-lg font-extrabold text-[#2B2468]">{appt.patient}</h3>
+                              
+                              {/* 1. Pending Approval */}
                               {isPending && !appt.rescheduleRequested && (
-                                <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200 text-[10px] px-2.5 py-1 rounded-full font-bold">
+                                <span className="inline-flex items-center gap-1 bg-[#FDE4EA] text-[#D6456B] border border-[#F9C9D4] text-[10px] px-2.5 py-1 rounded-full font-bold">
                                   <WarnIcon /> Awaiting Patient Action
                                 </span>
                               )}
+                              
+                              {/* 2. Awaiting Reschedule (Doctor requested) */}
                               {appt.rescheduleRequested && (
-                                <span className="bg-rose-100 text-rose-800 border border-rose-200 text-[10px] px-2.5 py-1 rounded-full font-bold">Emergency</span>
+                                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-2.5 py-1 rounded-full font-bold">
+                                  <WarnIcon /> Awaiting Reschedule
+                                </span>
                               )}
+                              
+                              {/* 3. Completed */}
                               {isCompleted && (
                                 <span className="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] px-2.5 py-1 rounded-full font-bold">Completed</span>
                               )}
