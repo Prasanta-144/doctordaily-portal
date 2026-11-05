@@ -62,11 +62,16 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // --- NEW: PRESCRIPTION UPLOAD STATES ---
+  // --- PRESCRIPTION UPLOAD STATES ---
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [prescriptionFile, setPrescriptionFile] = useState(null);
   const [uploadLoading, setUploadLoading] = useState(false);
+
+  // --- NEW: PATIENT HISTORY STATES ---
+  const [showPatientModal, setShowPatientModal] = useState(false);
+  const [selectedPatientHistory, setSelectedPatientHistory] = useState([]);
+  const [selectedPatientData, setSelectedPatientData] = useState(null);
 
   // Generate days for the selected month
   const getDaysInMonth = (year, month) => {
@@ -251,7 +256,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     setEditLoading(false);
   };
 
-  // --- NEW: PRESCRIPTION UPLOAD HANDLER ---
+  // --- PRESCRIPTION UPLOAD HANDLER ---
   const handlePrescriptionUpload = async (e) => {
     e.preventDefault();
     if (!prescriptionFile || !selectedAppt) return alert("Please select a file first.");
@@ -259,23 +264,29 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     setUploadLoading(true);
     try {
       const storage = getStorage();
-      // Save file in a folder structure: prescriptions/doctorId/apptId_filename
       const storageRef = ref(storage, `prescriptions/${doctorId}/${selectedAppt.id}_${prescriptionFile.name}`);
       
       await uploadBytes(storageRef, prescriptionFile);
       const downloadURL = await getDownloadURL(storageRef);
 
-      // Save the URL to the specific appointment document in Firestore
       await updateDoc(doc(db, "appointments", selectedAppt.id), {
         prescriptionUrl: downloadURL,
         prescriptionUploadedAt: new Date(),
         prescriptionFileName: prescriptionFile.name
       });
 
-      // Update local state so the UI immediately shows "View Prescription"
-      setAppointments(prev => prev.map(a => 
+      // Update local states so the UI immediately updates
+      const updatedAppts = appointments.map(a => 
         a.id === selectedAppt.id ? { ...a, prescriptionUrl: downloadURL } : a
-      ));
+      );
+      setAppointments(updatedAppts);
+
+      // If patient modal is open, update that history too
+      if (showPatientModal) {
+        setSelectedPatientHistory(prev => prev.map(a => 
+          a.id === selectedAppt.id ? { ...a, prescriptionUrl: downloadURL } : a
+        ));
+      }
 
       alert("Prescription uploaded successfully!");
       setShowUploadModal(false);
@@ -286,6 +297,19 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
       alert("Error uploading prescription: " + error.message);
     }
     setUploadLoading(false);
+  };
+
+  // --- NEW: OPEN PATIENT HISTORY ---
+  const handlePatientClick = (appt) => {
+    // Find all appointments for this patient with this doctor
+    const history = appointments.filter(a => 
+      (a.patientId && a.patientId === appt.patientId) || 
+      (!a.patientId && a.phone === appt.phone && a.patient === appt.patient)
+    ).sort((a, b) => new Date(b.createdAt?.toDate() || 0) - new Date(a.createdAt?.toDate() || 0));
+    
+    setSelectedPatientData({ name: appt.patient, phone: appt.phone });
+    setSelectedPatientHistory(history);
+    setShowPatientModal(true);
   };
 
   const handleSubscriptionPayment = async () => {
@@ -552,7 +576,16 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                         <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
-                              <h3 className="text-lg font-extrabold text-[#2B2468]">{appt.patient}</h3>
+                              
+                              {/* --- NEW: CLICKABLE PATIENT NAME --- */}
+                              <h3 
+                                onClick={() => handlePatientClick(appt)}
+                                className="text-lg font-extrabold text-[#2B2468] hover:text-[#4C41A6] hover:underline cursor-pointer transition"
+                                title="Click to view patient history"
+                              >
+                                {appt.patient}
+                              </h3>
+                              
                               {isPending && !appt.rescheduleRequested && <span className="inline-flex items-center gap-1 bg-[#FDE4EA] text-[#D6456B] border border-[#F9C9D4] text-[10px] px-2.5 py-1 rounded-full font-bold"><WarnIcon /> Awaiting Patient Action</span>}
                               {appt.rescheduleRequested && <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-2.5 py-1 rounded-full font-bold"><WarnIcon /> Awaiting Reschedule</span>}
                               {isCompleted && <span className="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] px-2.5 py-1 rounded-full font-bold">Completed</span>}
@@ -577,7 +610,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                             </span>
                             
                             <div className="flex flex-wrap gap-2 items-center">
-                                {/* --- NEW: PRESCRIPTION BUTTON --- */}
                                 {appt.prescriptionUrl ? (
                                   <a href={appt.prescriptionUrl} target="_blank" rel="noreferrer" className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100 transition">
                                     View Rx
@@ -587,7 +619,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                                     Upload Rx
                                   </button>
                                 )}
-                                {/* ------------------------------- */}
 
                                 {isPending && !appt.rescheduleRequested && (
                                   <>
@@ -612,10 +643,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             </>
           )}
 
-          {/* ... (Earnings Tab Code remains exactly the same) ... */}
           {activeTab === 'earnings' && (
-             // ... existing earnings code ...
-             <div>
+            <div>
               <div className="flex bg-[#EEEBFB] p-1 rounded-xl w-max mb-6">
                 <button onClick={() => setEarningsView('daily')} className={`px-6 py-2 rounded-lg text-sm font-bold transition ${earningsView === 'daily' ? 'bg-white text-[#4C41A6] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Daily</button>
                 <button onClick={() => setEarningsView('monthly')} className={`px-6 py-2 rounded-lg text-sm font-bold transition ${earningsView === 'monthly' ? 'bg-white text-[#4C41A6] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Monthly</button>
@@ -693,14 +722,91 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       </main>
 
-      {/* --- NEW: UPLOAD PRESCRIPTION MODAL --- */}
+      {/* --- NEW: PATIENT HISTORY MODAL --- */}
+      {showPatientModal && selectedPatientData && (
+        <div className="fixed inset-0 bg-[#1E1A4D]/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-[#4C41A6] to-[#3B3188] p-6 text-white flex justify-between items-start">
+              <div>
+                <h3 className="text-2xl font-extrabold">{selectedPatientData.name}</h3>
+                <p className="text-indigo-200 text-sm mt-1">📞 {selectedPatientData.phone || "No phone saved"}</p>
+                <p className="text-indigo-200 text-sm mt-1">Total Visits with you: {selectedPatientHistory.length}</p>
+              </div>
+              <button 
+                onClick={() => setShowPatientModal(false)}
+                className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+
+            {/* Modal Body - Scrollable History */}
+            <div className="p-6 overflow-y-auto bg-slate-50 flex-1">
+              <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Medical History</h4>
+              
+              <div className="space-y-4">
+                {selectedPatientHistory.map((appt, idx) => (
+                  <div key={appt.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                      appt.status === 'Completed' ? 'bg-emerald-400' : 
+                      appt.status === 'Cancelled' ? 'bg-rose-400' : 'bg-[#4C41A6]'
+                    }`}></div>
+                    
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-bold text-slate-800">{appt.dayLabel} at {appt.slot}</p>
+                        <p className="text-xs font-semibold text-slate-500">Token #{appt.token} · Status: {appt.status}</p>
+                      </div>
+                      <span className={`text-[10px] px-2 py-1 rounded-md font-bold ${
+                        appt.status === 'Completed' ? 'bg-emerald-50 text-emerald-700' :
+                        appt.status === 'Cancelled' ? 'bg-rose-50 text-rose-700' : 'bg-indigo-50 text-indigo-700'
+                      }`}>
+                        {appt.status}
+                      </span>
+                    </div>
+
+                    {appt.reason && (
+                      <p className="text-sm text-slate-600 mb-3">
+                        <span className="font-bold text-slate-700">Reason:</span> {appt.reason}
+                      </p>
+                    )}
+
+                    <div className="flex gap-2 mt-2 pt-2 border-t border-slate-100">
+                      {appt.prescriptionUrl ? (
+                        <a href={appt.prescriptionUrl} target="_blank" rel="noreferrer" className="flex-1 text-center bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100 transition">
+                          View Prescription
+                        </a>
+                      ) : (
+                        <button onClick={() => { setSelectedAppt(appt); setShowUploadModal(true); }} className="flex-1 text-center bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-100 transition">
+                          Upload Prescription
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="p-4 bg-white border-t border-slate-200">
+              <button onClick={() => setShowPatientModal(false)} className="w-full bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">
+                Close History
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- UPLOAD PRESCRIPTION MODAL (Existing) --- */}
       {showUploadModal && selectedAppt && (
-        <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full">
             <h3 className="text-2xl font-extrabold text-[#322B7B] mb-2">Upload Prescription</h3>
             <p className="text-sm text-slate-500 mb-6">
               Patient: <span className="font-bold text-slate-800">{selectedAppt.patient}</span><br/>
-              Token: #{selectedAppt.token}
+              Visit: {selectedAppt.dayLabel}
             </p>
             
             <form onSubmit={handlePrescriptionUpload} className="space-y-5">
@@ -726,6 +832,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       )}
 
+      {/* --- EDIT PROFILE MODAL (Existing) --- */}
       {showEditModal && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
@@ -771,6 +878,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       )}
 
+      {/* --- SCHEDULE MODAL (Existing) --- */}
       {showScheduleModal && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
