@@ -62,6 +62,12 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
+  // --- NEW: PRESCRIPTION UPLOAD STATES ---
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [selectedAppt, setSelectedAppt] = useState(null);
+  const [prescriptionFile, setPrescriptionFile] = useState(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
+
   // Generate days for the selected month
   const getDaysInMonth = (year, month) => {
     const date = new Date(year, month, 1);
@@ -243,6 +249,43 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
       alert("Error updating profile: " + error.message);
     }
     setEditLoading(false);
+  };
+
+  // --- NEW: PRESCRIPTION UPLOAD HANDLER ---
+  const handlePrescriptionUpload = async (e) => {
+    e.preventDefault();
+    if (!prescriptionFile || !selectedAppt) return alert("Please select a file first.");
+    
+    setUploadLoading(true);
+    try {
+      const storage = getStorage();
+      // Save file in a folder structure: prescriptions/doctorId/apptId_filename
+      const storageRef = ref(storage, `prescriptions/${doctorId}/${selectedAppt.id}_${prescriptionFile.name}`);
+      
+      await uploadBytes(storageRef, prescriptionFile);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // Save the URL to the specific appointment document in Firestore
+      await updateDoc(doc(db, "appointments", selectedAppt.id), {
+        prescriptionUrl: downloadURL,
+        prescriptionUploadedAt: new Date(),
+        prescriptionFileName: prescriptionFile.name
+      });
+
+      // Update local state so the UI immediately shows "View Prescription"
+      setAppointments(prev => prev.map(a => 
+        a.id === selectedAppt.id ? { ...a, prescriptionUrl: downloadURL } : a
+      ));
+
+      alert("Prescription uploaded successfully!");
+      setShowUploadModal(false);
+      setPrescriptionFile(null);
+      setSelectedAppt(null);
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Error uploading prescription: " + error.message);
+    }
+    setUploadLoading(false);
   };
 
   const handleSubscriptionPayment = async () => {
@@ -506,13 +549,14 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
                     return (
                       <div key={appt.id} className={`bg-white rounded-2xl border border-[#E6E3F5] border-l-[6px] border-l-[#C9C3EE] shadow-[0_2px_10px_rgba(76,65,166,0.07)] px-5 py-4 transition ${isCompleted ? 'opacity-70' : ''}`}>
-                        <div className="flex justify-between items-center gap-4">
+                        <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               <h3 className="text-lg font-extrabold text-[#2B2468]">{appt.patient}</h3>
                               {isPending && !appt.rescheduleRequested && <span className="inline-flex items-center gap-1 bg-[#FDE4EA] text-[#D6456B] border border-[#F9C9D4] text-[10px] px-2.5 py-1 rounded-full font-bold"><WarnIcon /> Awaiting Patient Action</span>}
                               {appt.rescheduleRequested && <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-2.5 py-1 rounded-full font-bold"><WarnIcon /> Awaiting Reschedule</span>}
                               {isCompleted && <span className="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] px-2.5 py-1 rounded-full font-bold">Completed</span>}
+                              {appt.prescriptionUrl && <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] px-2.5 py-1 rounded-full font-bold">Rx Uploaded</span>}
                             </div>
                             <p className="text-xs text-slate-600">Phone: {appt.phone || "Not provided"}</p>
                             <div className="flex items-center gap-2 mt-3">
@@ -526,12 +570,25 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                               </div>
                             )}
                           </div>
-                          <div className="flex flex-col items-end gap-3 shrink-0">
-                            <span className={`inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full font-bold border ${appt.paymentStatus === "Paid" ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                          
+                          <div className="flex flex-col lg:items-end gap-3 shrink-0">
+                            <span className={`inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full font-bold border w-max ${appt.paymentStatus === "Paid" ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
                               {appt.paymentStatus === "Paid" ? <><CardIcon /> Paid</> : "💵 To be paid"}
                             </span>
                             
-                            <div className="flex gap-2 items-center">
+                            <div className="flex flex-wrap gap-2 items-center">
+                                {/* --- NEW: PRESCRIPTION BUTTON --- */}
+                                {appt.prescriptionUrl ? (
+                                  <a href={appt.prescriptionUrl} target="_blank" rel="noreferrer" className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100 transition">
+                                    View Rx
+                                  </a>
+                                ) : (
+                                  <button onClick={() => { setSelectedAppt(appt); setShowUploadModal(true); }} className="bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-100 transition">
+                                    Upload Rx
+                                  </button>
+                                )}
+                                {/* ------------------------------- */}
+
                                 {isPending && !appt.rescheduleRequested && (
                                   <>
                                     <button onClick={() => updateStatus(appt.id, "Upcoming")} className="bg-[#4C41A6] text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-[#3F3590] shadow-sm transition">Accept</button>
@@ -555,8 +612,10 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             </>
           )}
 
+          {/* ... (Earnings Tab Code remains exactly the same) ... */}
           {activeTab === 'earnings' && (
-            <div>
+             // ... existing earnings code ...
+             <div>
               <div className="flex bg-[#EEEBFB] p-1 rounded-xl w-max mb-6">
                 <button onClick={() => setEarningsView('daily')} className={`px-6 py-2 rounded-lg text-sm font-bold transition ${earningsView === 'daily' ? 'bg-white text-[#4C41A6] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Daily</button>
                 <button onClick={() => setEarningsView('monthly')} className={`px-6 py-2 rounded-lg text-sm font-bold transition ${earningsView === 'monthly' ? 'bg-white text-[#4C41A6] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Monthly</button>
@@ -633,6 +692,39 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           )}
         </div>
       </main>
+
+      {/* --- NEW: UPLOAD PRESCRIPTION MODAL --- */}
+      {showUploadModal && selectedAppt && (
+        <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full">
+            <h3 className="text-2xl font-extrabold text-[#322B7B] mb-2">Upload Prescription</h3>
+            <p className="text-sm text-slate-500 mb-6">
+              Patient: <span className="font-bold text-slate-800">{selectedAppt.patient}</span><br/>
+              Token: #{selectedAppt.token}
+            </p>
+            
+            <form onSubmit={handlePrescriptionUpload} className="space-y-5">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Select File (Image or PDF)</label>
+                <input 
+                  type="file" 
+                  accept="image/*,application/pdf" 
+                  onChange={(e) => setPrescriptionFile(e.target.files[0])} 
+                  required
+                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6] text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#EEEBFB] file:text-[#4C41A6] hover:file:bg-[#E3DFF8]" 
+                />
+              </div>
+              
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={() => { setShowUploadModal(false); setPrescriptionFile(null); }} className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
+                <button type="submit" disabled={uploadLoading || !prescriptionFile} className="flex-1 bg-[#4C41A6] text-white py-3 rounded-xl font-bold hover:bg-[#3F3590] shadow-sm transition disabled:opacity-50">
+                  {uploadLoading ? "Uploading..." : "Upload"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {showEditModal && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
