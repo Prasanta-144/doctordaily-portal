@@ -8,27 +8,24 @@ import DoctorLogin from './DoctorLogin';
 import VerifyTicket from './VerifyTicket';
 
 export default function App() {
-  // 1. ALL HOOKS MUST BE DECLARED AT THE VERY TOP
   const [step, setStep] = useState(1);
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // View state for routing
   const [view, setView] = useState('landing');
   const [loggedInPhone, setLoggedInPhone] = useState('');
 
-  // Photo & Map states
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [mapLocation, setMapLocation] = useState('');
 
+  // Added medicalStream and renamed nmcRegistrationId to registrationId
   const [formData, setFormData] = useState({
-    name: '', specialization: 'General Medicine', qualifications: '', 
-    experienceYears: '', clinicName: '', clinicAddress: '', consultationFee: '', nmcRegistrationId: ''
+    name: '', medicalStream: 'MBBS', specialization: 'General Medicine', qualifications: '', 
+    experienceYears: '', clinicName: '', clinicAddress: '', consultationFee: '', registrationId: ''
   });
 
-  // --- Firebase Logic ---
   const handleSendOtp = async () => {
     if (phone.length !== 10) return alert("Enter a 10-digit number");
     setLoading(true);
@@ -66,33 +63,37 @@ export default function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.nmcRegistrationId) return alert("Please enter your NMC Registration Number.");
+    if (!formData.registrationId) return alert("Please enter your Registration Number.");
     setLoading(true);
 
     try {
-      // 1. Verify NMC Number
-      const apifyToken = "PASTE_YOUR_APIFY_TOKEN_HERE"; 
-      const response = await fetch(
-        `https://api.apify.com/v2/acts/whoareyouanas~nmc-doctor-lookup/run-sync-get-dataset-items?token=${apifyToken}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ registrationId: formData.nmcRegistrationId })
-        }
-      );
+      let isVerified = true;
 
-      const data = await response.json();
-      const isVerified = data && data[0] ? data[0].isValid : true; 
-      
-      if (!isVerified) {
-        alert("We could not verify this NMC Registration Number. Please check and try again.");
-        setLoading(false);
-        return; 
+      // --- ONLY RUN NMC APIFY CHECK IF STREAM IS MBBS ---
+      if (formData.medicalStream === 'MBBS') {
+        const apifyToken = "PASTE_YOUR_APIFY_TOKEN_HERE"; 
+        const response = await fetch(
+          `https://api.apify.com/v2/acts/whoareyouanas~nmc-doctor-lookup/run-sync-get-dataset-items?token=${apifyToken}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ registrationId: formData.registrationId })
+          }
+        );
+
+        const data = await response.json();
+        isVerified = data && data[0] ? data[0].isValid : true; 
+        
+        if (!isVerified) {
+          alert("We could not verify this NMC Registration Number. Please check and try again.");
+          setLoading(false);
+          return; 
+        }
       }
+      // -------------------------------------------------
 
       const user = auth.currentUser;
       
-      // 2. Upload Profile Photo (if selected)
       let photoUrl = "";
       if (photo) {
         const storage = getStorage();
@@ -101,18 +102,18 @@ export default function App() {
         photoUrl = await getDownloadURL(storageRef);
       }
 
-      // 3. Save to Firestore
       await setDoc(doc(db, "doctors", user.uid), {
         uid: user.uid,
         phone: user.phoneNumber,
         name: formData.name,
+        medicalStream: formData.medicalStream, // <-- SAVING STREAM
         specialization: formData.specialization,
         qualifications: formData.qualifications,
         experienceYears: Number(formData.experienceYears),
         clinicName: formData.clinicName,
         clinicAddress: formData.clinicAddress,
         consultationFee: Number(formData.consultationFee),
-        nmcRegistrationId: formData.nmcRegistrationId,
+        registrationId: formData.registrationId, // <-- SAVED AS registrationId
         status: "approved", 
         active: true,
         subscriptionStatus: "trial",
@@ -130,7 +131,17 @@ export default function App() {
 
   const handleInput = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  // --- 2. ROUTING LOGIC ---
+  // Helper to change the label based on stream
+  const getRegistrationLabel = () => {
+    switch(formData.medicalStream) {
+      case 'Dentist': return 'DCI / State Dental Council Registration Number';
+      case 'Homeopathy': return 'CCH Registration Number';
+      case 'Ayurveda': return 'NCISM Registration Number';
+      case 'Veterinary': return 'VCI Registration Number';
+      default: return 'NMC Registration Number';
+    }
+  };
+
   const urlParams = new URLSearchParams(window.location.search);
   const verifyId = urlParams.get('verify');
   
@@ -149,11 +160,9 @@ export default function App() {
     }} />;
   }
 
-  // --- 3. LANDING PAGE ---
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
       
-      {/* 1. NAVIGATION BAR */}
       <nav className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -172,7 +181,6 @@ export default function App() {
         </div>
       </nav>
 
-      {/* 2. HERO SECTION */}
       <header className="bg-brand text-white py-20 px-6 text-center">
         <div className="max-w-4xl mx-auto flex flex-col items-center">
           <img src="/logo.png" alt="DoctorDaily Logo" className="w-20 h-20 object-contain mb-6 bg-white rounded-2xl p-2 shadow-lg" />
@@ -188,7 +196,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* 3. FEATURES SECTION */}
       <section id="features" className="py-20 px-6 max-w-6xl mx-auto w-full">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-gray-800">Why partner with DoctorDaily?</h2>
@@ -213,7 +220,6 @@ export default function App() {
         </div>
       </section>
 
-      {/* 4. DOWNLOAD APP & RATINGS */}
       <section id="download" className="bg-gray-100 py-20 px-6">
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-12">
           <div className="md:w-1/2">
@@ -244,7 +250,6 @@ export default function App() {
         </div>
       </section>
 
-      {/* 5. REGISTRATION FORM */}
       <section id="register" className="py-20 px-6 max-w-lg mx-auto w-full">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-gray-800">Create Your Profile</h2>
@@ -287,7 +292,6 @@ export default function App() {
                 <p className="text-sm text-gray-500">Provide accurate details for patient booking.</p>
               </div>
 
-              {/* NEW: Photo Upload UI */}
               <div className="flex flex-col items-center mb-4">
                 <div className="w-24 h-24 rounded-full border-4 border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center mb-3">
                   {photoPreview ? (
@@ -305,8 +309,20 @@ export default function App() {
               <input name="name" type="text" placeholder="Full Name (e.g. Dr. Anil Sharma)" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
               
               <div className="flex gap-4">
-                <input name="qualifications" type="text" placeholder="Qualifications (MBBS, MD)" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
+                <input name="qualifications" type="text" placeholder="Qualifications (e.g. BDS, MDS)" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
                 <input name="experienceYears" type="number" placeholder="Years of Exp." required onChange={handleInput} className="w-1/3 border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
+              </div>
+
+              {/* --- NEW: MEDICAL STREAM SELECTOR --- */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Medical Stream</label>
+                <select name="medicalStream" value={formData.medicalStream} onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none bg-white">
+                  <option value="MBBS">MBBS (Allopathy)</option>
+                  <option value="Dentist">Dentist (BDS/MDS)</option>
+                  <option value="Homeopathy">Homeopathy (BHMS)</option>
+                  <option value="Ayurveda">Ayurveda (BAMS)</option>
+                  <option value="Veterinary">Veterinary (BVSc)</option>
+                </select>
               </div>
 
                <select name="specialization" onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none bg-white">
@@ -334,7 +350,6 @@ export default function App() {
               <input name="clinicName" type="text" placeholder="Clinic / Hospital Name" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
               <input name="clinicAddress" type="text" placeholder="Full Clinic Address" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
               
-              {/* NEW: Google Maps UI */}
               <div className="pt-1">
                 <input 
                   value={mapLocation} 
@@ -347,14 +362,19 @@ export default function App() {
 
               <input name="consultationFee" type="number" placeholder="Consultation Fee (₹)" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
               
+              {/* --- DYNAMIC REGISTRATION LABEL --- */}
               <div className="pt-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">NMC Registration Number</label>
-                <input name="nmcRegistrationId" type="text" placeholder="e.g. 2000010031" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
-                <p className="text-xs text-gray-500 mt-1">We verify this instantly against the National Medical Commission database.</p>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{getRegistrationLabel()}</label>
+                <input name="registrationId" type="text" placeholder="Enter your registration number" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.medicalStream === 'MBBS' 
+                    ? "We verify this instantly against the NMC database." 
+                    : "You will be added to the network once verified by our team."}
+                </p>
               </div>
 
               <button type="submit" disabled={loading} className="w-full bg-brand text-white p-3 rounded-lg font-bold hover:opacity-90 transition mt-4">
-                {loading ? "Uploading..." : "Submit Application"}
+                {loading ? "Processing..." : "Submit Application"}
               </button>
             </form>
           )}
@@ -363,13 +383,12 @@ export default function App() {
             <div className="text-center space-y-4 py-8">
               <div className="text-6xl">✅</div>
               <h3 className="text-2xl font-bold text-gray-800">Verification Successful!</h3>
-              <p className="text-gray-600 leading-relaxed">Your NMC registration was verified. Your profile is now live, and patients can book appointments with you immediately.</p>
+              <p className="text-gray-600 leading-relaxed">Your registration was verified. Your profile is now live, and patients can book appointments with you immediately.</p>
             </div>
           )}
         </div>
       </section>
 
-      {/* 6. FOOTER */}
       <footer className="bg-white py-8 border-t border-gray-200 mt-auto text-center text-sm text-gray-500">
         <p>© 2026 DoctorDaily. All rights reserved.</p>
         <p className="mt-1 font-medium text-gray-600">Developed at Mina App Studios</p>
