@@ -68,7 +68,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [prescriptionFile, setPrescriptionFile] = useState(null);
   const [uploadLoading, setUploadLoading] = useState(false);
 
-  // --- NEW: PATIENT HISTORY STATES ---
+  // --- PATIENT HISTORY STATES ---
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [selectedPatientHistory, setSelectedPatientHistory] = useState([]);
   const [selectedPatientData, setSelectedPatientData] = useState(null);
@@ -256,7 +256,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     setEditLoading(false);
   };
 
-  // --- PRESCRIPTION UPLOAD HANDLER ---
   const handlePrescriptionUpload = async (e) => {
     e.preventDefault();
     if (!prescriptionFile || !selectedAppt) return alert("Please select a file first.");
@@ -299,9 +298,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     setUploadLoading(false);
   };
 
-  // --- NEW: OPEN PATIENT HISTORY ---
   const handlePatientClick = (appt) => {
-    // Find all appointments for this patient with this doctor
     const history = appointments.filter(a => 
       (a.patientId && a.patientId === appt.patientId) || 
       (!a.patientId && a.phone === appt.phone && a.patient === appt.patient)
@@ -577,7 +574,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               
-                              {/* --- NEW: CLICKABLE PATIENT NAME --- */}
                               <h3 
                                 onClick={() => handlePatientClick(appt)}
                                 className="text-lg font-extrabold text-[#2B2468] hover:text-[#4C41A6] hover:underline cursor-pointer transition"
@@ -589,7 +585,10 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                               {isPending && !appt.rescheduleRequested && <span className="inline-flex items-center gap-1 bg-[#FDE4EA] text-[#D6456B] border border-[#F9C9D4] text-[10px] px-2.5 py-1 rounded-full font-bold"><WarnIcon /> Awaiting Patient Action</span>}
                               {appt.rescheduleRequested && <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-2.5 py-1 rounded-full font-bold"><WarnIcon /> Awaiting Reschedule</span>}
                               {isCompleted && <span className="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] px-2.5 py-1 rounded-full font-bold">Completed</span>}
-                              {appt.prescriptionUrl && <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] px-2.5 py-1 rounded-full font-bold">Rx Uploaded</span>}
+                              
+                              {/* --- UPDATED: Prescription Uploaded Chip --- */}
+                              {appt.prescriptionUrl && <span className="bg-[#EEEBFB] text-[#4C41A6] border border-[#DDD8F3] text-[10px] px-2.5 py-1 rounded-full font-bold">Prescription Uploaded</span>}
+                            
                             </div>
                             <p className="text-xs text-slate-600">Phone: {appt.phone || "Not provided"}</p>
                             <div className="flex items-center gap-2 mt-3">
@@ -605,18 +604,20 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                           </div>
                           
                           <div className="flex flex-col lg:items-end gap-3 shrink-0">
-                            <span className={`inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full font-bold border w-max ${appt.paymentStatus === "Paid" ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                            {/* --- UPDATED: Payment Status Colors --- */}
+                            <span className={`inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full font-bold border w-max ${appt.paymentStatus === "Paid" ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-[#F7F6FC] text-slate-500 border-[#E6E3F5]'}`}>
                               {appt.paymentStatus === "Paid" ? <><CardIcon /> Paid</> : "💵 To be paid"}
                             </span>
                             
                             <div className="flex flex-wrap gap-2 items-center">
+                                {/* --- UPDATED: View/Upload Prescription Buttons --- */}
                                 {appt.prescriptionUrl ? (
-                                  <a href={appt.prescriptionUrl} target="_blank" rel="noreferrer" className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100 transition">
-                                    View Rx
+                                  <a href={appt.prescriptionUrl} target="_blank" rel="noreferrer" className="bg-[#EEEBFB] border border-[#DDD8F3] text-[#4C41A6] px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-[#E3DFF8] transition">
+                                    View Prescription
                                   </a>
                                 ) : (
-                                  <button onClick={() => { setSelectedAppt(appt); setShowUploadModal(true); }} className="bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-100 transition">
-                                    Upload Rx
+                                  <button onClick={() => { setSelectedAppt(appt); setShowUploadModal(true); }} className="bg-white border border-slate-300 text-slate-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-50 transition">
+                                    Upload Prescription
                                   </button>
                                 )}
 
@@ -722,12 +723,11 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       </main>
 
-      {/* --- NEW: PATIENT HISTORY MODAL --- */}
+      {/* --- PATIENT HISTORY MODAL --- */}
       {showPatientModal && selectedPatientData && (
         <div className="fixed inset-0 bg-[#1E1A4D]/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
             
-            {/* Modal Header */}
             <div className="bg-gradient-to-r from-[#4C41A6] to-[#3B3188] p-6 text-white flex justify-between items-start">
               <div>
                 <h3 className="text-2xl font-extrabold">{selectedPatientData.name}</h3>
@@ -742,7 +742,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
               </button>
             </div>
 
-            {/* Modal Body - Scrollable History */}
             <div className="p-6 overflow-y-auto bg-slate-50 flex-1">
               <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Medical History</h4>
               
@@ -774,12 +773,13 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                     )}
 
                     <div className="flex gap-2 mt-2 pt-2 border-t border-slate-100">
+                      {/* --- UPDATED: History Modal Buttons --- */}
                       {appt.prescriptionUrl ? (
-                        <a href={appt.prescriptionUrl} target="_blank" rel="noreferrer" className="flex-1 text-center bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100 transition">
+                        <a href={appt.prescriptionUrl} target="_blank" rel="noreferrer" className="flex-1 text-center bg-[#EEEBFB] border border-[#DDD8F3] text-[#4C41A6] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#E3DFF8] transition">
                           View Prescription
                         </a>
                       ) : (
-                        <button onClick={() => { setSelectedAppt(appt); setShowUploadModal(true); }} className="flex-1 text-center bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-100 transition">
+                        <button onClick={() => { setSelectedAppt(appt); setShowUploadModal(true); }} className="flex-1 text-center bg-white border border-slate-300 text-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-50 transition">
                           Upload Prescription
                         </button>
                       )}
@@ -789,7 +789,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
               </div>
             </div>
             
-            {/* Modal Footer */}
             <div className="p-4 bg-white border-t border-slate-200">
               <button onClick={() => setShowPatientModal(false)} className="w-full bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">
                 Close History
@@ -799,7 +798,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       )}
 
-      {/* --- UPLOAD PRESCRIPTION MODAL (Existing) --- */}
+      {/* --- UPLOAD PRESCRIPTION MODAL --- */}
       {showUploadModal && selectedAppt && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full">
@@ -832,7 +831,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       )}
 
-      {/* --- EDIT PROFILE MODAL (Existing) --- */}
+      {/* --- EDIT PROFILE MODAL --- */}
       {showEditModal && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
@@ -878,7 +877,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       )}
 
-      {/* --- SCHEDULE MODAL (Existing) --- */}
+      {/* --- SCHEDULE MODAL --- */}
       {showScheduleModal && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
