@@ -32,7 +32,6 @@ const HourglassIcon = () => (
   <Icon className="w-6 h-6"><path d="M6 3h12M6 21h12M7 3c0 5 5 6 5 9s-5 4-5 9M17 3c0 5-5 6-5 9s5 4 5 9" /></Icon>
 );
 
-// FIX: Added className prop to WarnIcon
 const WarnIcon = ({ className = "w-3 h-3" }) => (
   <svg viewBox="0 0 24 24" className={className} fill="currentColor"><path d="M12 2L1 21h22L12 2zm1 15h-2v-2h2v2zm0-4h-2V9h2v4z" /></svg>
 );
@@ -493,9 +492,11 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             <button onClick={() => setShowScheduleModal(true)} className="w-full flex items-center gap-3 px-4 py-3 text-white/90 hover:bg-white/10 rounded-xl text-sm font-bold transition">
               <CalendarIcon /> Manage Schedule
             </button>
-           <a href="#" className="w-full flex items-center gap-3 px-4 py-3 text-white/90 hover:bg-white/10 rounded-xl text-sm font-bold transition">
-             <HomeIcon /> Homepage
-          </a>
+            
+            {/* FIX: Changed <a> to <button> to satisfy ESLint */}
+            <button onClick={() => { window.location.hash = ''; }} className="w-full flex items-center gap-3 px-4 py-3 text-white/90 hover:bg-white/10 rounded-xl text-sm font-bold transition">
+              <HomeIcon /> Homepage
+            </button>
 
             <div className="border-t border-white/15 my-4 mx-1" />
 
@@ -566,7 +567,10 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             <div className="hidden md:flex items-center gap-4 mt-1">
               <button onClick={() => setShowEditModal(true)} className="text-sm font-bold text-slate-600 hover:text-[#4C41A6] transition">Edit Profile</button>
               <button onClick={() => setShowScheduleModal(true)} className="text-sm font-bold text-[#4C41A6] border border-[#4C41A6] px-5 py-2 rounded-full hover:bg-[#4C41A6]/5 transition">Manage Schedule</button>
-              <a href="#" className="text-sm font-bold text-slate-800 hover:text-[#4C41A6] transition">Homepage</a>
+              
+              {/* FIX: Changed <a> to <button> to satisfy ESLint */}
+              <button onClick={() => { window.location.hash = ''; }} className="text-sm font-bold text-slate-800 hover:text-[#4C41A6] transition">Homepage</button>
+              
               <span className="w-px h-5 bg-slate-300" />
               <button onClick={onLogout} className="text-sm font-bold text-[#E5456B] hover:text-rose-700 transition">Sign Out</button>
             </div>
