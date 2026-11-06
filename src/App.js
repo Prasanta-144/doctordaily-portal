@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'; // <-- Added useEffect
+import { useState, useEffect } from 'react';
 import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -17,7 +17,7 @@ export default function App() {
     return localStorage.getItem('doctorPhone') || '';
   });
   
-  // --- FIX: Initialize view based on URL hash ---
+  // Initialize view based on URL hash
   const [view, setView] = useState(() => {
     const hash = window.location.hash.replace('#', '');
     const savedPhone = localStorage.getItem('doctorPhone');
@@ -25,23 +25,43 @@ export default function App() {
     if (hash === 'dashboard' && savedPhone) return 'dashboard';
     if (hash === 'login') return 'login';
     
-    // Default to landing page if no hash is present
+    // Default to landing page if no hash or invalid hash
     return 'landing';
   });
 
-  // --- FIX: Update URL hash when the view changes ---
+  // Listen to URL hash changes (Back/Forward buttons, clicking links)
   useEffect(() => {
-    if (view === 'dashboard') {
-      window.location.hash = 'dashboard';
-    } else if (view === 'login') {
-      window.location.hash = 'login';
-    } else {
-      // Clear the hash when going back to the landing page
-      if (window.location.hash) {
-        window.history.pushState("", document.title, window.location.pathname + window.location.search);
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      const savedPhone = localStorage.getItem('doctorPhone');
+      
+      if (hash === 'dashboard' && savedPhone) {
+        setView('dashboard');
+      } else if (hash === 'login') {
+        setView('login');
+      } else {
+        setView('landing');
       }
-    }
-  }, [view]);
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Helper functions for navigation
+  const handleLogin = (phone) => {
+    localStorage.setItem('doctorPhone', phone);
+    setLoggedInPhone(phone);
+    window.location.hash = 'dashboard'; // Updates URL
+    setView('dashboard');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('doctorPhone');
+    setLoggedInPhone('');
+    window.location.hash = ''; // Clears hash
+    setView('landing');
+  };
 
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -176,25 +196,13 @@ export default function App() {
     return (
       <DoctorDashboard 
         doctorPhone={loggedInPhone} 
-        onLogout={() => {
-          localStorage.removeItem('doctorPhone'); 
-          setLoggedInPhone('');
-          setView('landing');
-        }} 
+        onLogout={handleLogout} 
       />
     );
   }
 
   if (view === 'login') {
-    return (
-      <DoctorLogin 
-        onLogin={(phone) => {
-          localStorage.setItem('doctorPhone', phone); 
-          setLoggedInPhone(phone);
-          setView('dashboard');
-        }} 
-      />
-    );
+    return <DoctorLogin onLogin={handleLogin} />;
   }
 
   return (
@@ -210,7 +218,15 @@ export default function App() {
           <div className="hidden md:flex gap-6 text-sm font-medium text-gray-600 items-center">
             <a href="#features" className="hover:text-brand transition">Why Join?</a>
             <a href="#download" className="hover:text-brand transition">DoctorDaily App</a>
-            <button onClick={() => setView('login')} className="border border-brand text-brand px-4 py-1.5 rounded-full font-bold hover:bg-brand hover:text-white transition">
+            
+            {/* Show this button if the doctor is already logged in */}
+            {loggedInPhone && (
+              <button onClick={() => { window.location.hash = 'dashboard'; setView('dashboard'); }} className="text-brand font-bold hover:underline">
+                Go to Dashboard
+              </button>
+            )}
+
+            <button onClick={() => { window.location.hash = 'login'; setView('login'); }} className="border border-brand text-brand px-4 py-1.5 rounded-full font-bold hover:bg-brand hover:text-white transition">
               Doctor Login
             </button>
             <a href="#register" className="bg-brand text-white px-4 py-1.5 rounded-full font-bold hover:opacity-80 transition">Register</a>
@@ -233,6 +249,8 @@ export default function App() {
         </div>
       </header>
 
+      {/* ... rest of your landing page code ... */}
+      
       <section id="features" className="py-20 px-6 max-w-6xl mx-auto w-full">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-gray-800">Why partner with DoctorDaily?</h2>
