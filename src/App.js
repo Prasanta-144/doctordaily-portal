@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // <-- Added useEffect
 import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -13,20 +13,40 @@ export default function App() {
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // --- FIX: Check localStorage on initial load ---
   const [loggedInPhone, setLoggedInPhone] = useState(() => {
     return localStorage.getItem('doctorPhone') || '';
   });
   
+  // --- FIX: Initialize view based on URL hash ---
   const [view, setView] = useState(() => {
-    return localStorage.getItem('doctorPhone') ? 'dashboard' : 'landing';
+    const hash = window.location.hash.replace('#', '');
+    const savedPhone = localStorage.getItem('doctorPhone');
+    
+    if (hash === 'dashboard' && savedPhone) return 'dashboard';
+    if (hash === 'login') return 'login';
+    
+    // Default to landing page if no hash is present
+    return 'landing';
   });
+
+  // --- FIX: Update URL hash when the view changes ---
+  useEffect(() => {
+    if (view === 'dashboard') {
+      window.location.hash = 'dashboard';
+    } else if (view === 'login') {
+      window.location.hash = 'login';
+    } else {
+      // Clear the hash when going back to the landing page
+      if (window.location.hash) {
+        window.history.pushState("", document.title, window.location.pathname + window.location.search);
+      }
+    }
+  }, [view]);
 
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [mapLocation, setMapLocation] = useState('');
 
-  // Added medicalStream and renamed nmcRegistrationId to registrationId
   const [formData, setFormData] = useState({
     name: '', medicalStream: 'MBBS', specialization: 'General Medicine', qualifications: '', 
     experienceYears: '', clinicName: '', clinicAddress: '', consultationFee: '', registrationId: ''
@@ -75,7 +95,6 @@ export default function App() {
     try {
       let isVerified = true;
 
-      // --- ONLY RUN NMC APIFY CHECK IF STREAM IS MBBS ---
       if (formData.medicalStream === 'MBBS') {
         const apifyToken = "PASTE_YOUR_APIFY_TOKEN_HERE"; 
         const response = await fetch(
@@ -96,7 +115,6 @@ export default function App() {
           return; 
         }
       }
-      // -------------------------------------------------
 
       const user = auth.currentUser;
       
@@ -112,14 +130,14 @@ export default function App() {
         uid: user.uid,
         phone: user.phoneNumber,
         name: formData.name,
-        medicalStream: formData.medicalStream, // <-- SAVING STREAM
+        medicalStream: formData.medicalStream,
         specialization: formData.specialization,
         qualifications: formData.qualifications,
         experienceYears: Number(formData.experienceYears),
         clinicName: formData.clinicName,
         clinicAddress: formData.clinicAddress,
         consultationFee: Number(formData.consultationFee),
-        registrationId: formData.registrationId, // <-- SAVED AS registrationId
+        registrationId: formData.registrationId,
         status: "approved", 
         active: true,
         subscriptionStatus: "trial",
@@ -137,7 +155,6 @@ export default function App() {
 
   const handleInput = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  // Helper to change the label based on stream
   const getRegistrationLabel = () => {
     switch(formData.medicalStream) {
       case 'Dentist': return 'DCI / State Dental Council Registration Number';
@@ -160,7 +177,7 @@ export default function App() {
       <DoctorDashboard 
         doctorPhone={loggedInPhone} 
         onLogout={() => {
-          localStorage.removeItem('doctorPhone'); // <-- FIX: Clear session on logout
+          localStorage.removeItem('doctorPhone'); 
           setLoggedInPhone('');
           setView('landing');
         }} 
@@ -172,7 +189,7 @@ export default function App() {
     return (
       <DoctorLogin 
         onLogin={(phone) => {
-          localStorage.setItem('doctorPhone', phone); // <-- FIX: Save session on login
+          localStorage.setItem('doctorPhone', phone); 
           setLoggedInPhone(phone);
           setView('dashboard');
         }} 
@@ -333,7 +350,6 @@ export default function App() {
                 <input name="experienceYears" type="number" placeholder="Years of Exp." required onChange={handleInput} className="w-1/3 border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
               </div>
 
-              {/* --- NEW: MEDICAL STREAM SELECTOR --- */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Medical Stream</label>
                 <select name="medicalStream" value={formData.medicalStream} onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none bg-white">
@@ -382,7 +398,6 @@ export default function App() {
 
               <input name="consultationFee" type="number" placeholder="Consultation Fee (₹)" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
               
-              {/* --- DYNAMIC REGISTRATION LABEL --- */}
               <div className="pt-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">{getRegistrationLabel()}</label>
                 <input name="registrationId" type="text" placeholder="Enter your registration number" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
