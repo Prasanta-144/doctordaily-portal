@@ -480,7 +480,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   };
 
   const { total: totalEarnings, count: patientCount, appointments: earningsList } = calculateEarnings();
-  const displayedAppointments = appointments;
+  const displayedAppointments = appointments.filter(a => !a.clearedByDoctor);
 
   return (
     <div className="flex h-screen bg-[#F7F6FC] font-sans overflow-hidden">
