@@ -13,8 +13,14 @@ export default function App() {
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const [view, setView] = useState('landing');
-  const [loggedInPhone, setLoggedInPhone] = useState('');
+  // --- FIX: Check localStorage on initial load ---
+  const [loggedInPhone, setLoggedInPhone] = useState(() => {
+    return localStorage.getItem('doctorPhone') || '';
+  });
+  
+  const [view, setView] = useState(() => {
+    return localStorage.getItem('doctorPhone') ? 'dashboard' : 'landing';
+  });
 
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -150,14 +156,28 @@ export default function App() {
   }
 
   if (view === 'dashboard') {
-    return <DoctorDashboard doctorPhone={loggedInPhone} onLogout={() => setView('landing')} />;
+    return (
+      <DoctorDashboard 
+        doctorPhone={loggedInPhone} 
+        onLogout={() => {
+          localStorage.removeItem('doctorPhone'); // <-- FIX: Clear session on logout
+          setLoggedInPhone('');
+          setView('landing');
+        }} 
+      />
+    );
   }
 
   if (view === 'login') {
-    return <DoctorLogin onLogin={(phone) => {
-      setLoggedInPhone(phone);
-      setView('dashboard');
-    }} />;
+    return (
+      <DoctorLogin 
+        onLogin={(phone) => {
+          localStorage.setItem('doctorPhone', phone); // <-- FIX: Save session on login
+          setLoggedInPhone(phone);
+          setView('dashboard');
+        }} 
+      />
+    );
   }
 
   return (
