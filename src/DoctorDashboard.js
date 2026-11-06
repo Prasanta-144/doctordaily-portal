@@ -274,13 +274,11 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         prescriptionFileName: prescriptionFile.name
       });
 
-      // Update local states so the UI immediately updates
       const updatedAppts = appointments.map(a => 
         a.id === selectedAppt.id ? { ...a, prescriptionUrl: downloadURL } : a
       );
       setAppointments(updatedAppts);
 
-      // If patient modal is open, update that history too
       if (showPatientModal) {
         setSelectedPatientHistory(prev => prev.map(a => 
           a.id === selectedAppt.id ? { ...a, prescriptionUrl: downloadURL } : a
@@ -586,7 +584,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                               {appt.rescheduleRequested && <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-2.5 py-1 rounded-full font-bold"><WarnIcon /> Awaiting Reschedule</span>}
                               {isCompleted && <span className="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] px-2.5 py-1 rounded-full font-bold">Completed</span>}
                               
-                              {/* --- UPDATED: Prescription Uploaded Chip --- */}
                               {appt.prescriptionUrl && <span className="bg-[#EEEBFB] text-[#4C41A6] border border-[#DDD8F3] text-[10px] px-2.5 py-1 rounded-full font-bold">Prescription Uploaded</span>}
                             
                             </div>
@@ -601,16 +598,29 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                                 <span className="font-bold text-slate-800">Reason:</span> <span className="font-semibold ml-1">{appt.reason}</span>
                               </div>
                             )}
+
+                            {/* --- NEW: HEALTH RECORD BUTTON --- */}
+                            {appt.healthRecordUrl && (
+                              <div className="mt-3">
+                                <a 
+                                  href={appt.healthRecordUrl} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-700 px-3.5 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100 transition"
+                                >
+                                  📄 View Patient Report
+                                </a>
+                              </div>
+                            )}
+                            {/* --------------------------------- */}
                           </div>
                           
                           <div className="flex flex-col lg:items-end gap-3 shrink-0">
-                            {/* --- UPDATED: Payment Status Colors --- */}
                             <span className={`inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full font-bold border w-max ${appt.paymentStatus === "Paid" ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-[#F7F6FC] text-slate-500 border-[#E6E3F5]'}`}>
                               {appt.paymentStatus === "Paid" ? <><CardIcon /> Paid</> : "💵 To be paid"}
                             </span>
                             
                             <div className="flex flex-wrap gap-2 items-center">
-                                {/* --- UPDATED: View/Upload Prescription Buttons --- */}
                                 {appt.prescriptionUrl ? (
                                   <a href={appt.prescriptionUrl} target="_blank" rel="noreferrer" className="bg-[#EEEBFB] border border-[#DDD8F3] text-[#4C41A6] px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-[#E3DFF8] transition">
                                     View Prescription
@@ -773,7 +783,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                     )}
 
                     <div className="flex gap-2 mt-2 pt-2 border-t border-slate-100">
-                      {/* --- UPDATED: History Modal Buttons --- */}
                       {appt.prescriptionUrl ? (
                         <a href={appt.prescriptionUrl} target="_blank" rel="noreferrer" className="flex-1 text-center bg-[#EEEBFB] border border-[#DDD8F3] text-[#4C41A6] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#E3DFF8] transition">
                           View Prescription
@@ -782,6 +791,12 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                         <button onClick={() => { setSelectedAppt(appt); setShowUploadModal(true); }} className="flex-1 text-center bg-white border border-slate-300 text-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-50 transition">
                           Upload Prescription
                         </button>
+                      )}
+
+                      {appt.healthRecordUrl && (
+                        <a href={appt.healthRecordUrl} target="_blank" rel="noreferrer" className="flex-1 text-center bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100 transition">
+                          View Patient Report
+                        </a>
                       )}
                     </div>
                   </div>
