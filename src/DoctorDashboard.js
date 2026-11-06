@@ -147,17 +147,22 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
       try {
         const phoneE164 = doctorPhone.startsWith("+91") ? doctorPhone : `+91${doctorPhone}`;
+        console.log("🔍 DEBUG: Searching for doctor with phone:", phoneE164);
+        
         const doctorsRef = collection(db, "doctors");
         const q = query(doctorsRef, where("phone", "==", phoneE164));
         const doctorSnapshot = await getDocs(q);
 
         if (doctorSnapshot.empty) {
+          console.error("❌ DEBUG: No doctor found with this phone number.");
           setError("No doctor found with this phone number. Please register first.");
           setLoading(false);
           return;
         }
 
         const doctorDoc = doctorSnapshot.docs[0];
+        console.log("✅ DEBUG: Found Doctor ID:", doctorDoc.id); // <--- CRITICAL LOG
+
         const doctorData = doctorDoc.data();
 
         setDoctorId(doctorDoc.id);
@@ -200,13 +205,18 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         // --- REAL-TIME APPOINTMENT LISTENER ---
         const appointmentsRef = collection(db, "appointments");
         const apptQuery = query(appointmentsRef, where("doctorId", "==", doctorDoc.id));
+        console.log("🔍 DEBUG: Listening for appointments with doctorId ==", doctorDoc.id);
         
         unsubscribeAppts = onSnapshot(apptQuery, (snapshot) => {
+          console.log("📦 DEBUG: Snapshot received. Total docs matching query:", snapshot.docs.length); // <--- CRITICAL LOG
+
           // Include 'Cancelled' so we can show it and alert the doctor
           const appts = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
           })).filter(a => ["Pending", "Upcoming", "Completed", "Cancelled"].includes(a.status));
+
+          console.log("📋 DEBUG: Appts after status filter:", appts); // <--- CRITICAL LOG
 
           appts.sort((a, b) => {
             if (a.status === "Pending" && b.status !== "Pending") return -1;
@@ -230,6 +240,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           prevAppointmentsRef.current = appts;
           setAppointments(appts);
           setLoading(false);
+        }, (err) => {
+          console.error("❌ DEBUG: Snapshot error:", err);
         });
 
       } catch (error) {
@@ -247,6 +259,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     };
   }, [doctorPhone, onLogout]);
 
+  // ... (rest of the functions: handleEditPhotoChange, handleEditSubmit, handlePrescriptionUpload, etc. remain exactly the same as before) ...
+  
   const handleEditPhotoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -348,7 +362,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
       const { orderId, amount } = result.data;
 
       const options = {
-        key: "rzp_test_Tvbffal0a4v3Hu",
+        key: "rzp_test_Tvbffal0a4v3Hu", // Make sure this matches your new key!
         amount: amount,
         currency: "INR",
         name: "DoctorDaily",
@@ -380,7 +394,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const updateStatus = async (appointmentId, newStatus) => {
     try {
       await updateDoc(doc(db, "appointments", appointmentId), { status: newStatus });
-      // No need to manually setAppointments, onSnapshot handles it
     } catch (error) { alert("Error updating: " + error.message); }
   };
 
@@ -400,7 +413,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     } catch (error) { alert("Error saving schedule: " + error.message); }
   };
 
-  // UPDATED: Clear both Completed and Cancelled appointments
   const clearHistory = async () => {
     const toClear = appointments.filter(a => 
       (a.status === "Completed" || a.status === "Cancelled") && !a.clearedByDoctor
@@ -412,7 +424,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         updateDoc(doc(db, "appointments", appt.id), { clearedByDoctor: true })
       );
       await Promise.all(promises);
-      // onSnapshot will update the UI automatically
     } catch (error) {
       alert("Error clearing history: " + error.message);
     }
@@ -473,6 +484,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
   return (
     <div className="flex h-screen bg-[#F7F6FC] font-sans overflow-hidden">
+      {/* ... the entire JSX for the return statement remains exactly the same as your previous file ... */}
+      
       <aside className="w-64 bg-gradient-to-b from-[#4C41A6] to-[#3B3188] hidden md:flex flex-col justify-between shadow-xl z-20 relative overflow-hidden">
         <div className="relative z-10">
           <div className="px-5 pt-6 pb-5 flex items-center gap-3">
@@ -493,7 +506,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
               <CalendarIcon /> Manage Schedule
             </button>
             
-            {/* FIX: Changed <a> to <button> to satisfy ESLint */}
             <button onClick={() => { window.location.hash = ''; }} className="w-full flex items-center gap-3 px-4 py-3 text-white/90 hover:bg-white/10 rounded-xl text-sm font-bold transition">
               <HomeIcon /> Homepage
             </button>
@@ -513,7 +525,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
       <main className="flex-1 overflow-y-auto bg-gradient-to-br from-white via-[#F8F7FD] to-[#EFEDFA] relative">
         
-        {/* --- REAL-TIME CANCELLATION TOAST --- */}
         {cancellationAlert && (
           <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 bg-rose-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-slide-down">
             <WarnIcon className="w-6 h-6" />
@@ -568,7 +579,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
               <button onClick={() => setShowEditModal(true)} className="text-sm font-bold text-slate-600 hover:text-[#4C41A6] transition">Edit Profile</button>
               <button onClick={() => setShowScheduleModal(true)} className="text-sm font-bold text-[#4C41A6] border border-[#4C41A6] px-5 py-2 rounded-full hover:bg-[#4C41A6]/5 transition">Manage Schedule</button>
               
-              {/* FIX: Changed <a> to <button> to satisfy ESLint */}
               <button onClick={() => { window.location.hash = ''; }} className="text-sm font-bold text-slate-800 hover:text-[#4C41A6] transition">Homepage</button>
               
               <span className="w-px h-5 bg-slate-300" />
@@ -638,7 +648,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                               {appt.rescheduleRequested && <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-2.5 py-1 rounded-full font-bold"><WarnIcon /> Awaiting Reschedule</span>}
                               {isCompleted && <span className="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] px-2.5 py-1 rounded-full font-bold">Completed</span>}
                               
-                              {/* NEW: CANCELLED BADGE */}
                               {isCancelled && <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] px-2.5 py-1 rounded-full font-bold">Cancelled by Patient</span>}
 
                               {appt.prescriptionUrl && <span className="bg-[#EEEBFB] text-[#4C41A6] border border-[#DDD8F3] text-[10px] px-2.5 py-1 rounded-full font-bold">Prescription Uploaded</span>}
@@ -656,7 +665,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                               </div>
                             )}
 
-                            {/* HEALTH RECORD BUTTON */}
                             {appt.healthRecordUrl && (
                               <div className="mt-3">
                                 <a 
@@ -712,7 +720,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             </>
           )}
 
-          {/* EARNINGS TAB REMAINS EXACTLY THE SAME */}
           {activeTab === 'earnings' && (
             <div>
               <div className="flex bg-[#EEEBFB] p-1 rounded-xl w-max mb-6">
@@ -792,7 +799,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       </main>
 
-      {/* --- PATIENT HISTORY MODAL --- */}
       {showPatientModal && selectedPatientData && (
         <div className="fixed inset-0 bg-[#1E1A4D]/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
@@ -872,7 +878,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       )}
 
-      {/* --- UPLOAD PRESCRIPTION MODAL --- */}
       {showUploadModal && selectedAppt && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full">
@@ -905,7 +910,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       )}
 
-      {/* --- EDIT PROFILE MODAL --- */}
       {showEditModal && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
@@ -951,7 +955,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       )}
 
-      {/* --- SCHEDULE MODAL --- */}
       {showScheduleModal && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
