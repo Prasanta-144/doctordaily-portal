@@ -13,11 +13,11 @@ export default function App() {
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   
+  // --- Check localStorage on initial load ---
   const [loggedInPhone, setLoggedInPhone] = useState(() => {
     return localStorage.getItem('doctorPhone') || '';
   });
   
-  // Initialize view based on URL hash
   const [view, setView] = useState(() => {
     const hash = window.location.hash.replace('#', '');
     const savedPhone = localStorage.getItem('doctorPhone');
@@ -25,43 +25,21 @@ export default function App() {
     if (hash === 'dashboard' && savedPhone) return 'dashboard';
     if (hash === 'login') return 'login';
     
-    // Default to landing page if no hash or invalid hash
     return 'landing';
   });
 
-  // Listen to URL hash changes (Back/Forward buttons, clicking links)
+  // --- Update URL hash when the view changes ---
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.replace('#', '');
-      const savedPhone = localStorage.getItem('doctorPhone');
-      
-      if (hash === 'dashboard' && savedPhone) {
-        setView('dashboard');
-      } else if (hash === 'login') {
-        setView('login');
-      } else {
-        setView('landing');
+    if (view === 'dashboard') {
+      window.location.hash = 'dashboard';
+    } else if (view === 'login') {
+      window.location.hash = 'login';
+    } else {
+      if (window.location.hash) {
+        window.history.pushState("", document.title, window.location.pathname + window.location.search);
       }
-    };
-
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
-
-  // Helper functions for navigation
-  const handleLogin = (phone) => {
-    localStorage.setItem('doctorPhone', phone);
-    setLoggedInPhone(phone);
-    window.location.hash = 'dashboard'; // Updates URL
-    setView('dashboard');
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('doctorPhone');
-    setLoggedInPhone('');
-    window.location.hash = ''; // Clears hash
-    setView('landing');
-  };
+    }
+  }, [view]);
 
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -109,34 +87,15 @@ export default function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.registrationId) return alert("Please enter your Registration Number.");
     setLoading(true);
 
     try {
-      let isVerified = true;
-
-      if (formData.medicalStream === 'MBBS') {
-        const apifyToken = "PASTE_YOUR_APIFY_TOKEN_HERE"; 
-        const response = await fetch(
-          `https://api.apify.com/v2/acts/whoareyouanas~nmc-doctor-lookup/run-sync-get-dataset-items?token=${apifyToken}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ registrationId: formData.registrationId })
-          }
-        );
-
-        const data = await response.json();
-        isVerified = data && data[0] ? data[0].isValid : true; 
-        
-        if (!isVerified) {
-          alert("We could not verify this NMC Registration Number. Please check and try again.");
-          setLoading(false);
-          return; 
-        }
-      }
-
       const user = auth.currentUser;
+      
+      // Safety check: Ensure user is authenticated
+      if (!user) {
+        throw new Error("Your session has expired. Please verify your phone number again.");
+      }
       
       let photoUrl = "";
       if (photo) {
@@ -157,7 +116,8 @@ export default function App() {
         clinicName: formData.clinicName,
         clinicAddress: formData.clinicAddress,
         consultationFee: Number(formData.consultationFee),
-        registrationId: formData.registrationId,
+        registrationId: formData.registrationId || "", // Optional now
+        verificationStatus: "pending", // <-- Default to pending
         status: "approved", 
         active: true,
         subscriptionStatus: "trial",
@@ -177,11 +137,11 @@ export default function App() {
 
   const getRegistrationLabel = () => {
     switch(formData.medicalStream) {
-      case 'Dentist': return 'DCI / State Dental Council Registration Number';
-      case 'Homeopathy': return 'CCH Registration Number';
-      case 'Ayurveda': return 'NCISM Registration Number';
-      case 'Veterinary': return 'VCI Registration Number';
-      default: return 'NMC Registration Number';
+      case 'Dentist': return 'DCI / State Dental Council Registration Number (Optional)';
+      case 'Homeopathy': return 'CCH Registration Number (Optional)';
+      case 'Ayurveda': return 'NCISM Registration Number (Optional)';
+      case 'Veterinary': return 'VCI Registration Number (Optional)';
+      default: return 'NMC Registration Number (Optional)';
     }
   };
 
@@ -196,13 +156,25 @@ export default function App() {
     return (
       <DoctorDashboard 
         doctorPhone={loggedInPhone} 
-        onLogout={handleLogout} 
+        onLogout={() => {
+          localStorage.removeItem('doctorPhone'); 
+          setLoggedInPhone('');
+          setView('landing');
+        }} 
       />
     );
   }
 
   if (view === 'login') {
-    return <DoctorLogin onLogin={handleLogin} />;
+    return (
+      <DoctorLogin 
+        onLogin={(phone) => {
+          localStorage.setItem('doctorPhone', phone); 
+          setLoggedInPhone(phone);
+          setView('dashboard');
+        }} 
+      />
+    );
   }
 
   return (
@@ -219,7 +191,6 @@ export default function App() {
             <a href="#features" className="hover:text-brand transition">Why Join?</a>
             <a href="#download" className="hover:text-brand transition">DoctorDaily App</a>
             
-            {/* Show this button if the doctor is already logged in */}
             {loggedInPhone && (
               <button onClick={() => { window.location.hash = 'dashboard'; setView('dashboard'); }} className="text-brand font-bold hover:underline">
                 Go to Dashboard
@@ -241,7 +212,7 @@ export default function App() {
             Grow your practice.<br/>Manage appointments effortlessly.
           </h1>
           <p className="text-lg md:text-xl text-brand-100 mb-8 max-w-2xl mx-auto opacity-90">
-            Join Sonitpur{"'"}s fastest-growing healthcare network. Connect with patients, manage your queue, and say goodbye to no-shows.
+            Join Sonitpur's fastest-growing healthcare network. Connect with patients, manage your queue, and say goodbye to no-shows.
           </p>
           <a href="#register" className="bg-white text-brand font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-xl transition transform hover:-translate-y-1 inline-block">
             Create Doctor Profile
@@ -249,8 +220,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* ... rest of your landing page code ... */}
-      
       <section id="features" className="py-20 px-6 max-w-6xl mx-auto w-full">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-gray-800">Why partner with DoctorDaily?</h2>
@@ -264,13 +233,13 @@ export default function App() {
           </div>
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 text-center">
             <div className="text-4xl mb-4">🛡️</div>
-            <h3 className="text-xl font-bold mb-2 text-gray-800">Verified Network</h3>
-            <p className="text-gray-500 text-sm">We verify every doctor via the NMC registry. Being part of a trusted platform builds instant patient confidence.</p>
+            <h3 className="text-xl font-bold mb-2 text-gray-800">Build Instant Trust</h3>
+            <p className="text-gray-500 text-sm">Get the Verified Blue Tick on your profile by providing your registration details. Stand out and build instant patient confidence.</p>
           </div>
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 text-center">
             <div className="text-4xl mb-4">🎁</div>
             <h3 className="text-xl font-bold mb-2 text-gray-800">1-Month Free Trial</h3>
-            <p className="text-gray-500 text-sm">Try all premium features free for 30 days. After that, it{"'"}s just ₹2000/month to keep your practice running smoothly.</p>
+            <p className="text-gray-500 text-sm">Try all premium features free for 30 days. After that, it's just ₹2000/month to keep your practice running smoothly.</p>
           </div>
         </div>
       </section>
@@ -411,18 +380,16 @@ export default function App() {
                   placeholder="Google Maps Link (Optional)" 
                   className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" 
                 />
-                <p className="text-xs text-gray-500 mt-1">Paste your clinic{"'"}s Google Maps link so patients can find you easily.</p>
+                <p className="text-xs text-gray-500 mt-1">Paste your clinic's Google Maps link so patients can find you easily.</p>
               </div>
 
               <input name="consultationFee" type="number" placeholder="Consultation Fee (₹)" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
               
               <div className="pt-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">{getRegistrationLabel()}</label>
-                <input name="registrationId" type="text" placeholder="Enter your registration number" required onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
+                <input name="registrationId" type="text" placeholder="Enter your registration number" onChange={handleInput} className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none" />
                 <p className="text-xs text-gray-500 mt-1">
-                  {formData.medicalStream === 'MBBS' 
-                    ? "We verify this instantly against the NMC database." 
-                    : "You will be added to the network once verified by our team."}
+                  You can provide this now or later to get the <b>Verified Blue Tick</b>. You can start accepting patients immediately.
                 </p>
               </div>
 
@@ -435,8 +402,8 @@ export default function App() {
           {step === 4 && (
             <div className="text-center space-y-4 py-8">
               <div className="text-6xl">✅</div>
-              <h3 className="text-2xl font-bold text-gray-800">Verification Successful!</h3>
-              <p className="text-gray-600 leading-relaxed">Your registration was verified. Your profile is now live, and patients can book appointments with you immediately.</p>
+              <h3 className="text-2xl font-bold text-gray-800">Profile Created!</h3>
+              <p className="text-gray-600 leading-relaxed">Your profile is now live. You can log in to your dashboard immediately and start accepting appointments.</p>
             </div>
           )}
         </div>
