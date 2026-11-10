@@ -1,140 +1,120 @@
 import React, { useState } from 'react';
-import { RecaptchaVerifier, signInWithPhoneNumber, signOut } from "firebase/auth";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
 export default function DoctorLogin({ onLogin }) {
-  const [step, setStep] = useState(1); // 1 = Phone, 2 = OTP
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSendOtp = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
+    setLoading(true);
     setError('');
     
-    if (phone.length !== 10) {
-      setError("Enter a valid 10-digit phone number");
-      return;
-    }
-
-    setLoading(true);
     try {
-      // Initialize reCAPTCHA invisibly
-      if (!window.recaptchaVerifier) {
-        window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+      // 1. Authenticate with Email and Password
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // 2. Fetch the Doctor's profile from Firestore to get their phone number
+      const docRef = doc(db, "doctors", user.uid);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const doctorData = docSnap.data();
+        // Extract the phone number (remove +91 prefix for the dashboard)
+        const phone = doctorData.phone ? doctorData.phone.replace('+91', '') : '';
+        
+        // 3. Pass the phone number back to App.js to trigger the dashboard
+        onLogin(phone);
+      } else {
+        setError("No doctor profile found for this account. Please register first.");
+        // Sign out since they don't have a doctor profile
+        auth.signOut();
       }
-      
-      const confirmation = await signInWithPhoneNumber(auth, `+91${phone}`, window.recaptchaVerifier);
-      window.confirmationResult = confirmation;
-      setStep(2);
     } catch (err) {
       console.error(err);
-      setError(err.message || "Failed to send OTP.");
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-        window.recaptchaVerifier = null;
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+        setError("Invalid email or password. Please try again.");
+      } else {
+        setError(err.message || "Failed to log in.");
       }
-    }
-    setLoading(false);
-  };
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      // 1. Verify OTP with Firebase
-      await window.confirmationResult.confirm(otp);
-      
-      // 2. Check if this user is actually a registered Doctor
-      const phoneE164 = `+91${phone}`;
-      const doctorsRef = collection(db, "doctors");
-      const q = query(doctorsRef, where("phone", "==", phoneE164));
-      const doctorSnapshot = await getDocs(q);
-
-      if (doctorSnapshot.empty) {
-        // Not a doctor! Sign them out immediately.
-        await signOut(auth);
-        setError("This phone number is not registered as a doctor. Please register first.");
-        setStep(1);
-        setLoading(false);
-        return;
-      }
-
-      // 3. Success! Call the parent onLogin
-      onLogin(phone);
-
-    } catch (err) {
-      console.error(err);
-      setError("Invalid OTP. Please try again.");
     }
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFC] flex items-center justify-center p-6 font-sans">
-      <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full border border-slate-100 text-center">
-        <div className="mb-8">
-          <img src="/logo.png" alt="Logo" className="w-16 h-16 object-contain mx-auto mb-4" />
-          <h2 className="text-2xl font-extrabold text-[#322B7B]">Doctor Login</h2>
-          <p className="text-sm text-slate-500 mt-1">
-            {step === 1 ? "Enter your registered phone number." : `Enter the OTP sent to +91 ${phone}`}
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-xl border border-gray-100">
+        
+        <div className="text-center">
+          <img src="/logo.png" alt="DoctorDaily Logo" className="mx-auto h-16 w-auto object-contain mb-4" />
+          <h2 className="text-3xl font-extrabold text-gray-900">
+            Doctor Login
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Welcome back! Please enter your details.
           </p>
         </div>
 
-        <div id="recaptcha-container"></div>
-
-        {step === 1 ? (
-          <form onSubmit={handleSendOtp} className="space-y-4">
-            <input 
-              type="tel" 
-              placeholder="10-digit mobile number" 
-              value={phone} 
-              onChange={(e) => setPhone(e.target.value)} 
-              className="w-full border border-slate-300 p-3.5 rounded-xl focus:ring-2 focus:ring-[#4C41A6] outline-none text-center tracking-widest font-semibold" 
-            />
-            {error && <p className="text-rose-500 text-sm font-semibold">{error}</p>}
-            <button 
-              type="submit" 
-              disabled={loading} 
-              className="w-full bg-[#4C41A6] text-white p-3.5 rounded-xl font-bold hover:bg-[#3F3590] transition shadow-md disabled:opacity-70 mt-2"
-            >
-              {loading ? "Sending..." : "Send OTP"}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyOtp} className="space-y-4">
-            <input 
-              type="text" 
-              placeholder="6-digit OTP" 
-              value={otp} 
-              onChange={(e) => setOtp(e.target.value)} 
-              className="w-full border border-slate-300 p-3.5 rounded-xl focus:ring-2 focus:ring-[#4C41A6] outline-none text-center tracking-widest font-semibold text-lg" 
-            />
-            {error && <p className="text-rose-500 text-sm font-semibold">{error}</p>}
-            <button 
-              type="submit" 
-              disabled={loading} 
-              className="w-full bg-[#4C41A6] text-white p-3.5 rounded-xl font-bold hover:bg-[#3F3590] transition shadow-md disabled:opacity-70 mt-2"
-            >
-              {loading ? "Verifying..." : "Verify & Login"}
-            </button>
-            <button 
-              type="button"
-              onClick={() => setStep(1)}
-              className="text-sm text-slate-500 hover:text-slate-800 transition mt-2"
-            >
-              Change phone number
-            </button>
-          </form>
+        {error && (
+          <div className="bg-rose-50 text-rose-600 p-3 rounded-lg text-sm text-center font-medium border border-rose-100">
+            {error}
+          </div>
         )}
 
-        <p className="mt-8 text-sm text-slate-500">
-          New doctor? <a href="/#register" className="text-[#4C41A6] font-bold hover:underline">Register here</a>
-        </p>
+        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="doctor@example.com"
+                className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none transition"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none transition"
+              />
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-brand hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand transition disabled:opacity-50"
+            >
+              {loading ? "Logging in..." : "Log In"}
+            </button>
+          </div>
+        </form>
+
+        <div className="mt-6 flex flex-col space-y-3 text-center text-sm">
+          <p className="text-gray-600">
+            Don't have an account?{' '}
+            <button onClick={() => window.location.hash = ''} className="font-bold text-brand hover:underline">
+              Register here
+            </button>
+          </p>
+          <button onClick={() => window.location.hash = ''} className="font-medium text-gray-500 hover:text-gray-800 transition">
+            ← Back to Homepage
+          </button>
+        </div>
+        
       </div>
     </div>
   );
