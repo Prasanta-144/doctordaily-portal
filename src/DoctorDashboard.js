@@ -31,6 +31,9 @@ const CardIcon = () => (
 const HourglassIcon = () => (
   <Icon className="w-6 h-6"><path d="M6 3h12M6 21h12M7 3c0 5 5 6 5 9s-5 4-5 9M17 3c0 5-5 6-5 9s5 4 5 9" /></Icon>
 );
+const VerifiedIcon = () => (
+  <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+);
 
 const WarnIcon = ({ className = "w-3 h-3" }) => (
   <svg viewBox="0 0 24 24" className={className} fill="currentColor"><path d="M12 2L1 21h22L12 2zm1 15h-2v-2h2v2zm0-4h-2V9h2v4z" /></svg>
@@ -53,8 +56,16 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [doctorName, setDoctorName] = useState('');
   const [doctorFee, setDoctorFee] = useState(0);
   const [doctorId, setDoctorId] = useState(null);
+  const [doctorStream, setDoctorStream] = useState('MBBS'); // <-- Track medical stream
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // --- VERIFICATION STATE ---
+  const [verificationStatus, setVerificationStatus] = useState('pending');
+  const [registrationId, setRegistrationId] = useState('');
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [verifyInput, setVerifyInput] = useState('');
+  const [verifyLoading, setVerifyLoading] = useState(false);
 
   // --- REAL-TIME CANCELLATION ALERT STATE ---
   const [cancellationAlert, setCancellationAlert] = useState(null);
@@ -79,7 +90,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [selectedPatientHistory, setSelectedPatientHistory] = useState([]);
   const [selectedPatientData, setSelectedPatientData] = useState(null);
 
-  // Generate days for the selected month
   const getDaysInMonth = (year, month) => {
     const date = new Date(year, month, 1);
     const days = [];
@@ -110,7 +120,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     setSelectedDate(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-01`);
   };
 
-  // --- SUBSCRIPTION STATE ---
   const [subscription, setSubscription] = useState({
     status: 'trial',
     trialEndsAt: null,
@@ -118,7 +127,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     isDue: false
   });
 
-  // --- EDIT PROFILE STATE ---
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '', clinicName: '', clinicAddress: '', mapLocation: '', consultationFee: 0
@@ -127,7 +135,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [editPhotoPreview, setEditPhotoPreview] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
 
-  // Schedule State
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [dateToBlock, setDateToBlock] = useState("");
   const [schedule, setSchedule] = useState({
@@ -147,27 +154,27 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
       try {
         const phoneE164 = doctorPhone.startsWith("+91") ? doctorPhone : `+91${doctorPhone}`;
-        console.log("🔍 DEBUG: Searching for doctor with phone:", phoneE164);
-        
         const doctorsRef = collection(db, "doctors");
         const q = query(doctorsRef, where("phone", "==", phoneE164));
         const doctorSnapshot = await getDocs(q);
 
         if (doctorSnapshot.empty) {
-          console.error("❌ DEBUG: No doctor found with this phone number.");
           setError("No doctor found with this phone number. Please register first.");
           setLoading(false);
           return;
         }
 
         const doctorDoc = doctorSnapshot.docs[0];
-        console.log("✅ DEBUG: Found Doctor ID:", doctorDoc.id); // <--- CRITICAL LOG
-
         const doctorData = doctorDoc.data();
 
         setDoctorId(doctorDoc.id);
         setDoctorName(doctorData.name);
         setDoctorFee(doctorData.consultationFee || 500);
+        setDoctorStream(doctorData.medicalStream || 'MBBS');
+        
+        // Load Verification Data
+        setVerificationStatus(doctorData.verificationStatus || 'pending');
+        setRegistrationId(doctorData.registrationId || '');
         
         setEditForm({
           name: doctorData.name || '',
@@ -202,21 +209,14 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           });
         }
 
-        // --- REAL-TIME APPOINTMENT LISTENER ---
         const appointmentsRef = collection(db, "appointments");
         const apptQuery = query(appointmentsRef, where("doctorId", "==", doctorDoc.id));
-        console.log("🔍 DEBUG: Listening for appointments with doctorId ==", doctorDoc.id);
         
         unsubscribeAppts = onSnapshot(apptQuery, (snapshot) => {
-          console.log("📦 DEBUG: Snapshot received. Total docs matching query:", snapshot.docs.length); // <--- CRITICAL LOG
-
-          // Include 'Cancelled' so we can show it and alert the doctor
           const appts = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
           })).filter(a => ["Pending", "Upcoming", "Completed", "Cancelled"].includes(a.status));
-
-          console.log("📋 DEBUG: Appts after status filter:", appts); // <--- CRITICAL LOG
 
           appts.sort((a, b) => {
             if (a.status === "Pending" && b.status !== "Pending") return -1;
@@ -224,11 +224,9 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             return 0;
           });
 
-          // Detect newly cancelled appointments
           if (prevAppointmentsRef.current.length > 0) {
             appts.forEach(newAppt => {
               const oldAppt = prevAppointmentsRef.current.find(a => a.id === newAppt.id);
-              // If it was active, and now it's cancelled
               if (oldAppt && oldAppt.status !== "Cancelled" && newAppt.status === "Cancelled") {
                 setCancellationAlert(
                   `Patient ${newAppt.patient} has cancelled their appointment scheduled on ${newAppt.dayLabel} at ${newAppt.slot}.`
@@ -240,8 +238,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           prevAppointmentsRef.current = appts;
           setAppointments(appts);
           setLoading(false);
-        }, (err) => {
-          console.error("❌ DEBUG: Snapshot error:", err);
         });
 
       } catch (error) {
@@ -253,14 +249,41 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
     fetchDoctorData();
 
-    // Cleanup listener on unmount
     return () => {
       if (unsubscribeAppts) unsubscribeAppts();
     };
   }, [doctorPhone, onLogout]);
 
-  // ... (rest of the functions: handleEditPhotoChange, handleEditSubmit, handlePrescriptionUpload, etc. remain exactly the same as before) ...
-  
+  const getVerificationLabel = () => {
+    switch(doctorStream) {
+      case 'Dentist': return 'DCI / State Dental Council Registration Number';
+      case 'Homeopathy': return 'CCH Registration Number';
+      case 'Ayurveda': return 'NCISM Registration Number';
+      case 'Veterinary': return 'VCI Registration Number';
+      default: return 'NMC Registration Number';
+    }
+  };
+
+  const handleVerifySubmit = async (e) => {
+    e.preventDefault();
+    if (!verifyInput.trim()) return alert("Please enter a valid registration number.");
+    
+    setVerifyLoading(true);
+    try {
+      await updateDoc(doc(db, "doctors", doctorId), {
+        registrationId: verifyInput.trim(),
+        verificationStatus: "pending_review"
+      });
+      setVerificationStatus("pending_review");
+      setRegistrationId(verifyInput.trim());
+      setShowVerifyModal(false);
+      alert(`${getVerificationLabel()} submitted successfully! We will review it shortly.`);
+    } catch (error) {
+      alert("Error submitting verification: " + error.message);
+    }
+    setVerifyLoading(false);
+  };
+
   const handleEditPhotoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -324,7 +347,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         a.id === selectedAppt.id ? { ...a, prescriptionUrl: downloadURL } : a
       );
       setAppointments(updatedAppts);
-      prevAppointmentsRef.current = updatedAppts; // Update ref
+      prevAppointmentsRef.current = updatedAppts;
 
       if (showPatientModal) {
         setSelectedPatientHistory(prev => prev.map(a => 
@@ -362,7 +385,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
       const { orderId, amount } = result.data;
 
       const options = {
-        key: "rzp_test_Tvbffal0a4v3Hu", // Make sure this matches your new key!
+        key: "rzp_test_Tvbffal0a4v3Hu",
         amount: amount,
         currency: "INR",
         name: "DoctorDaily",
@@ -484,8 +507,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
   return (
     <div className="flex h-screen bg-[#F7F6FC] font-sans overflow-hidden">
-      {/* ... the entire JSX for the return statement remains exactly the same as your previous file ... */}
-      
       <aside className="w-64 bg-gradient-to-b from-[#4C41A6] to-[#3B3188] hidden md:flex flex-col justify-between shadow-xl z-20 relative overflow-hidden">
         <div className="relative z-10">
           <div className="px-5 pt-6 pb-5 flex items-center gap-3">
@@ -539,6 +560,36 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         )}
 
         <div className="max-w-5xl mx-auto p-6 md:p-10">
+          
+          {verificationStatus !== 'verified' && (
+            <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 px-5 py-4 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 flex items-center justify-center rounded-full shrink-0 bg-white text-blue-600 shadow-sm">
+                  <VerifiedIcon />
+                </div>
+                <div>
+                  <h3 className="font-bold text-blue-900">
+                    {verificationStatus === 'pending_review' ? "Verification Under Review" : "Get Verified!"}
+                  </h3>
+                  <p className="text-sm text-blue-700 mt-0.5">
+                    {verificationStatus === 'pending_review' 
+                      ? `We are currently reviewing your ${getVerificationLabel()}. This usually takes 24-48 hours.`
+                      : `Submit your ${getVerificationLabel()} to get the Blue Tick and build instant patient trust.`}
+                  </p>
+                </div>
+              </div>
+              
+              {verificationStatus !== 'pending_review' && (
+                <button 
+                  onClick={() => { setVerifyInput(registrationId || ''); setShowVerifyModal(true); }} 
+                  className="w-full md:w-auto bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-md transition whitespace-nowrap"
+                >
+                  Verify Now →
+                </button>
+              )}
+            </div>
+          )}
+
           {subscription.isDue && (
             <div className={`mb-8 px-5 py-4 rounded-2xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm ${
               subscription.daysLeft <= 0 ? 'bg-rose-50 border-rose-200' : 'bg-[#F1EFFB] border-[#DDD8F3]'
@@ -568,8 +619,18 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
           <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
             <div>
-              <h1 className="text-4xl font-extrabold text-[#322B7B] tracking-tight">Doctor Dashboard</h1>
-              <p className="text-slate-800 mt-3 text-sm font-bold">Welcome back, {doctorName || "Loading..."}</p>
+              <div className="flex items-center gap-2">
+                <h1 className="text-4xl font-extrabold text-[#322B7B] tracking-tight">Doctor Dashboard</h1>
+                {verificationStatus === 'verified' && <VerifiedIcon />}
+              </div>
+              <div className="flex items-center gap-2 mt-3">
+                <p className="text-slate-800 text-sm font-bold">Welcome back, {doctorName || "Loading..."}</p>
+                {verificationStatus === 'verified' && (
+                  <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold border border-blue-200">
+                    VERIFIED
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-500 mt-1">
                 Logged in as: <span className="text-[#5E5AA8] font-semibold">{doctorPhone}</span>
               </p>
@@ -636,13 +697,14 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               
-                              <h3 
+                              {/* FIXED: Changed h3 to button for ESLint a11y rules */}
+                              <button 
                                 onClick={() => handlePatientClick(appt)}
-                                className={`text-lg font-extrabold hover:underline cursor-pointer transition ${isCancelled ? 'text-slate-500 line-through' : 'text-[#2B2468] hover:text-[#4C41A6]'}`}
+                                className={`text-lg font-extrabold hover:underline transition text-left ${isCancelled ? 'text-slate-500 line-through' : 'text-[#2B2468] hover:text-[#4C41A6]'}`}
                                 title="Click to view patient history"
                               >
                                 {appt.patient}
-                              </h3>
+                              </button>
                               
                               {isPending && !appt.rescheduleRequested && <span className="inline-flex items-center gap-1 bg-[#FDE4EA] text-[#D6456B] border border-[#F9C9D4] text-[10px] px-2.5 py-1 rounded-full font-bold"><WarnIcon /> Awaiting Patient Action</span>}
                               {appt.rescheduleRequested && <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-2.5 py-1 rounded-full font-bold"><WarnIcon /> Awaiting Reschedule</span>}
@@ -799,6 +861,43 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       </main>
 
+      {/* --- VERIFICATION MODAL --- */}
+      {showVerifyModal && (
+        <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full">
+            <div className="flex items-center gap-3 mb-2">
+              <VerifiedIcon />
+              <h3 className="text-2xl font-extrabold text-[#322B7B]">Get Verified</h3>
+            </div>
+            <p className="text-sm text-slate-500 mb-6">
+              Enter your {getVerificationLabel()} below. Once verified, you will receive the Blue Tick on your profile.
+            </p>
+            
+            <form onSubmit={handleVerifySubmit} className="space-y-5">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">{getVerificationLabel()}</label>
+                <input 
+                  type="text" 
+                  value={verifyInput}
+                  onChange={(e) => setVerifyInput(e.target.value)}
+                  placeholder="e.g., 12345"
+                  required
+                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6] text-sm" 
+                />
+              </div>
+              
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={() => setShowVerifyModal(false)} className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
+                <button type="submit" disabled={verifyLoading || !verifyInput.trim()} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-sm transition disabled:opacity-50">
+                  {verifyLoading ? "Submitting..." : "Submit"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- PATIENT HISTORY MODAL --- */}
       {showPatientModal && selectedPatientData && (
         <div className="fixed inset-0 bg-[#1E1A4D]/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
@@ -878,6 +977,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       )}
 
+      {/* --- UPLOAD PRESCRIPTION MODAL --- */}
       {showUploadModal && selectedAppt && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full">
@@ -910,6 +1010,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       )}
 
+      {/* --- EDIT PROFILE MODAL --- */}
       {showEditModal && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
@@ -955,6 +1056,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       )}
 
+      {/* --- SCHEDULE MODAL --- */}
       {showScheduleModal && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
