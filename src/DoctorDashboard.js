@@ -91,6 +91,7 @@ const formatTimeTo12Hour = (timeStr) => {
 export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [appointments, setAppointments] = useState([]);
   const [doctorName, setDoctorName] = useState('');
+  const [doctorProfile, setDoctorProfile] = useState(null);
   const [doctorFee, setDoctorFee] = useState(0);
   const [doctorId, setDoctorId] = useState(null);
   const [doctorStream, setDoctorStream] = useState('MBBS');
@@ -180,7 +181,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     advanceBookingDays: 7,
     bookingCutoffTime: "20:00",
     blockedDates: [],
-    venues: [] // Venues array
+    venues: []
   });
 
   useEffect(() => {
@@ -207,6 +208,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
         setDoctorId(doctorDoc.id);
         setDoctorName(doctorData.name);
+        setDoctorProfile(doctorData);
         setDoctorFee(doctorData.consultationFee || 500);
         setDoctorStream(doctorData.medicalStream || 'MBBS');
         
@@ -366,6 +368,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
       });
 
       setDoctorName(editForm.name);
+      setDoctorProfile(prev => ({ ...prev, name: editForm.name, clinicName: editForm.clinicName, photoUrl: photoUrl }));
       setDoctorFee(Number(editForm.consultationFee));
       setShowEditModal(false);
       alert("Profile updated successfully!");
@@ -715,20 +718,18 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             </div>
           )}
 
+          {/* UPDATED HEADER: Tick moved next to doctor's name */}
           <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-4xl font-extrabold text-[#322B7B] tracking-tight">Doctor Dashboard</h1>
+              </div>
+              
+              <div className="flex items-center gap-2 mt-3">
+                <p className="text-slate-800 text-sm font-bold">Welcome back, Dr {doctorName || "Loading..."}</p>
                 {verificationStatus === 'verified' && <VerifiedIcon />}
               </div>
-              <div className="flex items-center gap-2 mt-3">
-                <p className="text-slate-800 text-sm font-bold">Welcome back, {doctorName || "Loading..."}</p>
-                {verificationStatus === 'verified' && (
-                  <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold border border-blue-200">
-                    VERIFIED
-                  </span>
-                )}
-              </div>
+              
               <p className="text-xs text-slate-500 mt-1">
                 Logged in as: <span className="text-[#5E5AA8] font-semibold">{doctorPhone}</span>
               </p>
@@ -1190,7 +1191,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                       }}
                       className="w-full border p-2 rounded-lg mb-2 text-sm"
                     />
-                    {/* ADDED: Google Maps Link field */}
                     <input 
                       type="text" placeholder="Google Maps Link (Optional)" 
                       value={venue.mapLocation || ''} 
