@@ -51,6 +51,48 @@ const CalendarPlusWatermark = () => (
   </svg>
 );
 
+/* ---------- Time formatter (mirrors Android's formatTimeTo12Hour) ---------- */
+// ⬅️ ADDED: converts "16:00" / "4p.m." / "4:15 PM" → "4 p.m." / "4:15 p.m."
+const formatTimeTo12Hour = (timeStr) => {
+  if (!timeStr) return '';
+  const trimmed = String(timeStr).trim();
+  const lower = trimmed.toLowerCase();
+
+  // Already has dots (e.g. "4p.m." or "4 p.m.") → normalize spacing
+  if (lower.includes('a.m.') || lower.includes('p.m.')) {
+    return trimmed
+      .replace(/\s*a\.m\./gi, ' a.m.')
+      .replace(/\s*p\.m\./gi, ' p.m.')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // Has AM/PM without dots (e.g. "4PM", "04:15 PM") → add dots + space
+  if (lower.includes('am') || lower.includes('pm')) {
+    return trimmed
+      .replace(/\s*am/gi, ' a.m.')
+      .replace(/\s*pm/gi, ' p.m.')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // 24-hour HH:mm → h:mm p.m.
+  try {
+    const parts = trimmed.split(':');
+    if (parts.length >= 2) {
+      const hour = parseInt(parts[0], 10);
+      const min = parseInt(parts[1].slice(0, 2), 10);
+      const amPm = hour < 12 ? 'a.m.' : 'p.m.';
+      const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+      return min === 0
+        ? `${hour12} ${amPm}`
+        : `${hour12}:${String(min).padStart(2, '0')} ${amPm}`;
+    }
+  } catch (e) { /* fall through */ }
+
+  return timeStr;
+};
+
 export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [appointments, setAppointments] = useState([]);
   const [doctorName, setDoctorName] = useState('');
@@ -246,8 +288,9 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             appts.forEach(newAppt => {
               const oldAppt = prevAppointmentsRef.current.find(a => a.id === newAppt.id);
               if (oldAppt && oldAppt.status !== "Cancelled" && newAppt.status === "Cancelled") {
+                // ⬅️ CHANGED: format slot via helper
                 setCancellationAlert(
-                  `Patient ${newAppt.patient} has cancelled their appointment scheduled on ${newAppt.dayLabel} at ${newAppt.slot}.`
+                  `Patient ${newAppt.patient} has cancelled their appointment scheduled on ${newAppt.dayLabel} at ${formatTimeTo12Hour(newAppt.slot)}.`
                 );
               }
             });
@@ -794,7 +837,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                             </div>
                             <p className="text-xs text-slate-600">Phone: {appt.phone || "Not provided"}</p>
                             <div className="flex items-center gap-2 mt-3">
-                              <span className={`${isCancelled ? 'bg-slate-100 text-slate-400' : 'bg-[#EEEBFB] text-[#4C41A6]'} text-xs font-bold px-3 py-1.5 rounded-lg`}>{appt.dayLabel} at {appt.slot}</span>
+                              {/* ⬅️ CHANGED: slot formatted via helper */}
+                              <span className={`${isCancelled ? 'bg-slate-100 text-slate-400' : 'bg-[#EEEBFB] text-[#4C41A6]'} text-xs font-bold px-3 py-1.5 rounded-lg`}>{appt.dayLabel} at {formatTimeTo12Hour(appt.slot)}</span>
                               <span className="w-px h-4 bg-slate-300" />
                               <span className={`${isCancelled ? 'bg-slate-100 text-slate-400' : 'bg-[#EEEBFB] text-[#4C41A6]'} text-xs font-bold px-3 py-1.5 rounded-lg`}>Token #{appt.token}</span>
                             </div>
@@ -1006,7 +1050,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                     
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <p className="font-bold text-slate-800">{appt.dayLabel} at {appt.slot}</p>
+                        {/* ⬅️ CHANGED: slot formatted via helper */}
+                        <p className="font-bold text-slate-800">{appt.dayLabel} at {formatTimeTo12Hour(appt.slot)}</p>
                         <p className="text-xs font-semibold text-slate-500">Token #{appt.token} · Status: {appt.status}</p>
                       </div>
                       <span className={`text-[10px] px-2 py-1 rounded-md font-bold ${
