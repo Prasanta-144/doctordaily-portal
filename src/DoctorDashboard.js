@@ -51,7 +51,6 @@ const CalendarPlusWatermark = () => (
   </svg>
 );
 
-/* ---------- Time formatter ---------- */
 const formatTimeTo12Hour = (timeStr) => {
   if (!timeStr) return '';
   const trimmed = String(timeStr).trim();
@@ -98,42 +97,34 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // --- VERIFICATION STATE ---
   const [verificationStatus, setVerificationStatus] = useState('pending');
   const [registrationId, setRegistrationId] = useState('');
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [verifyInput, setVerifyInput] = useState('');
   const [verifyLoading, setVerifyLoading] = useState(false);
 
-  // --- LEAVE NOTICE STATE ---
   const [leaveMessage, setLeaveMessage] = useState('');
   const [leaveStartDate, setLeaveStartDate] = useState('');
   const [leaveEndDate, setLeaveEndDate] = useState('');
 
-  // --- REAL-TIME CANCELLATION ALERT STATE ---
   const [cancellationAlert, setCancellationAlert] = useState(null);
   const prevAppointmentsRef = useRef([]);
 
-  // Navigation & View States
   const [activeTab, setActiveTab] = useState('queue');
   const [earningsView, setEarningsView] = useState('daily');
   
-  // Date Navigation State
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // --- PRESCRIPTION UPLOAD STATES ---
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [prescriptionFile, setPrescriptionFile] = useState(null);
   const [uploadLoading, setUploadLoading] = useState(false);
 
-  // --- PATIENT HISTORY STATES ---
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [selectedPatientHistory, setSelectedPatientHistory] = useState([]);
   const [selectedPatientData, setSelectedPatientData] = useState(null);
 
-  // Generate days for the selected month
   const getDaysInMonth = (year, month) => {
     const date = new Date(year, month, 1);
     const days = [];
@@ -164,7 +155,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     setSelectedDate(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-01`);
   };
 
-  // --- SUBSCRIPTION STATE ---
   const [subscription, setSubscription] = useState({
     status: 'trial',
     trialEndsAt: null,
@@ -172,7 +162,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     isDue: false
   });
 
-  // --- EDIT PROFILE STATE ---
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '', clinicName: '', clinicAddress: '', mapLocation: '', consultationFee: 0
@@ -181,7 +170,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [editPhotoPreview, setEditPhotoPreview] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
 
-  // Schedule State
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [schedule, setSchedule] = useState({
     workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
@@ -192,7 +180,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     advanceBookingDays: 7,
     bookingCutoffTime: "20:00",
     blockedDates: [],
-    venues: [] // NEW: Venues array
+    venues: [] // Venues array
   });
 
   useEffect(() => {
@@ -225,7 +213,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         setVerificationStatus(doctorData.verificationStatus || 'pending');
         setRegistrationId(doctorData.registrationId || '');
         
-        // --- Load Leave Data ---
         setLeaveMessage(doctorData.leaveMessage || '');
         setLeaveStartDate(doctorData.leaveStartDate || '');
         setLeaveEndDate(doctorData.leaveEndDate || '');
@@ -263,7 +250,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             advanceBookingDays: doctorData.schedule.advanceBookingDays || 7,
             bookingCutoffTime: doctorData.schedule.bookingCutoffTime || "20:00",
             blockedDates: doctorData.schedule.blockedDates || [],
-            venues: doctorData.schedule.venues || [] // NEW: Load Venues
+            venues: doctorData.schedule.venues || []
           });
         }
 
@@ -837,7 +824,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                               </div>
                             )}
 
-                            {/* NEW: Show Venue */}
                             {appt.venueName && (
                               <div className="mt-2 text-xs font-bold text-[#4C41A6]">
                                 📍 {appt.venueName}
@@ -1175,157 +1161,169 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
       {/* --- SCHEDULE MODAL --- */}
       {showScheduleModal && (
-        <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
-            <h3 className="text-2xl font-extrabold text-[#322B7B] mb-4">Manage Availability</h3>
-            
-            {/* VENUES MANAGER */}
-            <div className="mb-6">
-              <h4 className="font-bold text-slate-800 mb-3 text-sm">Clinic Venues</h4>
-              {schedule.venues?.map((venue, index) => (
-                <div key={index} className="mb-4 p-3 border border-slate-200 rounded-xl bg-slate-50">
-                  <input 
-                    type="text" placeholder="Venue Name" 
-                    value={venue.name} 
-                    onChange={(e) => {
-                      const newVenues = [...schedule.venues];
-                      newVenues[index].name = e.target.value;
-                      setSchedule({...schedule, venues: newVenues});
-                    }}
-                    className="w-full border p-2 rounded-lg mb-2 text-sm"
-                  />
-                  <input 
-                    type="text" placeholder="Address" 
-                    value={venue.address} 
-                    onChange={(e) => {
-                      const newVenues = [...schedule.venues];
-                      newVenues[index].address = e.target.value;
-                      setSchedule({...schedule, venues: newVenues});
-                    }}
-                    className="w-full border p-2 rounded-lg mb-2 text-sm"
-                  />
-                  
-                  <div className="flex flex-wrap gap-1">
-                    {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
-                      <button
-                        key={day}
-                        onClick={() => {
-                          const newVenues = [...schedule.venues];
-                          const days = newVenues[index].workingDays || [];
-                          newVenues[index].workingDays = days.includes(day) ? days.filter(d => d !== day) : [...days, day];
-                          setSchedule({...schedule, venues: newVenues});
-                        }}
-                        className={`px-2 py-1 text-xs rounded border ${venue.workingDays?.includes(day) ? 'bg-[#4C41A6] text-white' : 'bg-white'}`}
-                      >
-                        {day}
-                      </button>
-                    ))}
+        <div className="fixed inset-0 bg-[#1E1A4D]/50 z-50 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4 py-8">
+            <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-auto">
+              <h3 className="text-2xl font-extrabold text-[#322B7B] mb-4">Manage Availability</h3>
+              
+              <div className="mb-6">
+                <h4 className="font-bold text-slate-800 mb-3 text-sm">Clinic Venues</h4>
+                {schedule.venues?.map((venue, index) => (
+                  <div key={index} className="mb-4 p-3 border border-slate-200 rounded-xl bg-slate-50">
+                    <input 
+                      type="text" placeholder="Venue Name" 
+                      value={venue.name} 
+                      onChange={(e) => {
+                        const newVenues = [...schedule.venues];
+                        newVenues[index].name = e.target.value;
+                        setSchedule({...schedule, venues: newVenues});
+                      }}
+                      className="w-full border p-2 rounded-lg mb-2 text-sm"
+                    />
+                    <input 
+                      type="text" placeholder="Address" 
+                      value={venue.address} 
+                      onChange={(e) => {
+                        const newVenues = [...schedule.venues];
+                        newVenues[index].address = e.target.value;
+                        setSchedule({...schedule, venues: newVenues});
+                      }}
+                      className="w-full border p-2 rounded-lg mb-2 text-sm"
+                    />
+                    {/* ADDED: Google Maps Link field */}
+                    <input 
+                      type="text" placeholder="Google Maps Link (Optional)" 
+                      value={venue.mapLocation || ''} 
+                      onChange={(e) => {
+                        const newVenues = [...schedule.venues];
+                        newVenues[index].mapLocation = e.target.value;
+                        setSchedule({...schedule, venues: newVenues});
+                      }}
+                      className="w-full border p-2 rounded-lg mb-2 text-sm"
+                    />
+                    
+                    <div className="flex flex-wrap gap-1">
+                      {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
+                        <button
+                          key={day}
+                          onClick={() => {
+                            const newVenues = [...schedule.venues];
+                            const days = newVenues[index].workingDays || [];
+                            newVenues[index].workingDays = days.includes(day) ? days.filter(d => d !== day) : [...days, day];
+                            setSchedule({...schedule, venues: newVenues});
+                          }}
+                          className={`px-2 py-1 text-xs rounded border ${venue.workingDays?.includes(day) ? 'bg-[#4C41A6] text-white' : 'bg-white'}`}
+                        >
+                          {day}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => {
+                        const newVenues = schedule.venues.filter((_, i) => i !== index);
+                        setSchedule({...schedule, venues: newVenues});
+                    }} className="text-rose-500 text-xs mt-2 font-bold">Remove</button>
                   </div>
-                  <button onClick={() => {
-                      const newVenues = schedule.venues.filter((_, i) => i !== index);
-                      setSchedule({...schedule, venues: newVenues});
-                  }} className="text-rose-500 text-xs mt-2 font-bold">Remove</button>
-                </div>
-              ))}
-              <button onClick={() => setSchedule({...schedule, venues: [...(schedule.venues || []), { id: Date.now().toString(), name: '', address: '', workingDays: [] }]})} className="text-[#4C41A6] text-sm font-bold">
-                + Add Venue
-              </button>
-            </div>
-            
-            <div className="flex gap-4 mb-5">
-              <div className="flex-1">
-                <label className="block text-sm font-bold text-slate-700 mb-2">Start Time</label>
-                <input type="time" value={schedule.startTime} onChange={(e) => setSchedule({ ...schedule, startTime: e.target.value })} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" />
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-bold text-slate-700 mb-2">End Time</label>
-                <input type="time" value={schedule.endTime} onChange={(e) => setSchedule({ ...schedule, endTime: e.target.value })} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" />
-              </div>
-            </div>
-            
-            <div className="flex gap-4 mb-5">
-              <div className="flex-1">
-                <label className="block text-sm font-bold text-slate-700 mb-2">Slot Duration</label>
-                <select value={schedule.slotDuration} onChange={(e) => setSchedule({ ...schedule, slotDuration: Number(e.target.value) })} className="w-full border border-slate-300 p-2.5 rounded-xl bg-white outline-none focus:border-[#4C41A6]">
-                  <option value={15}>15 Minutes</option>
-                  <option value={30}>30 Minutes</option>
-                  <option value={45}>45 Minutes</option>
-                  <option value={60}>60 Minutes</option>
-                </select>
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-bold text-slate-700 mb-2">Max Patients/Day</label>
-                <input 
-                  type="number" 
-                  value={schedule.maxDailyPatients} 
-                  onChange={(e) => setSchedule({ ...schedule, maxDailyPatients: Number(e.target.value) })} 
-                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
-                  min="1"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-4 mb-5">
-              <div className="flex-1">
-                <label className="block text-sm font-bold text-slate-700 mb-2">Advance Booking (Days)</label>
-                <input 
-                  type="number" 
-                  value={schedule.advanceBookingDays} 
-                  onChange={(e) => setSchedule({ ...schedule, advanceBookingDays: Number(e.target.value) })} 
-                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
-                  min="1"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-bold text-slate-700 mb-2">Tomorrow's Cutoff</label>
-                <input 
-                  type="time" 
-                  value={schedule.bookingCutoffTime} 
-                  onChange={(e) => setSchedule({ ...schedule, bookingCutoffTime: e.target.value })} 
-                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
-                />
-              </div>
-            </div>
-
-            <div className="mb-8 p-4 bg-[#F7F6FC] rounded-2xl border border-[#E6E3F5]">
-              <h4 className="font-bold text-slate-800 mb-3 text-sm">Leave / Absence Notice</h4>
-              <p className="text-xs text-slate-500 mb-3">Patients will see a red warning on your profile during these dates.</p>
-              
-              <div className="mb-3">
-                <label className="block text-xs font-bold text-slate-700 mb-1">Message</label>
-                <input 
-                  type="text" 
-                  value={leaveMessage} 
-                  onChange={(e) => setLeaveMessage(e.target.value)} 
-                  placeholder="e.g. Attending a medical conference"
-                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6] text-sm" 
-                />
-              </div>
-              
-              <div className="flex gap-2 mb-3">
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Start Date</label>
-                  <input type="date" value={leaveStartDate} onChange={(e) => setLeaveStartDate(e.target.value)} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6] text-sm" />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">End Date</label>
-                  <input type="date" value={leaveEndDate} onChange={(e) => setLeaveEndDate(e.target.value)} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6] text-sm" />
-                </div>
-              </div>
-
-              {(leaveMessage || leaveStartDate || leaveEndDate) && (
-                <button 
-                  onClick={() => { setLeaveMessage(''); setLeaveStartDate(''); setLeaveEndDate(''); }}
-                  className="text-xs font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1"
-                >
-                  <TrashIcon /> Clear Notice
+                ))}
+                <button onClick={() => setSchedule({...schedule, venues: [...(schedule.venues || []), { id: Date.now().toString(), name: '', address: '', mapLocation: '', workingDays: [] }]})} className="text-[#4C41A6] text-sm font-bold">
+                  + Add Venue
                 </button>
-              )}
-            </div>
+              </div>
+              
+              <div className="flex gap-4 mb-5">
+                <div className="flex-1">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Start Time</label>
+                  <input type="time" value={schedule.startTime} onChange={(e) => setSchedule({ ...schedule, startTime: e.target.value })} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">End Time</label>
+                  <input type="time" value={schedule.endTime} onChange={(e) => setSchedule({ ...schedule, endTime: e.target.value })} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" />
+                </div>
+              </div>
+              
+              <div className="flex gap-4 mb-5">
+                <div className="flex-1">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Slot Duration</label>
+                  <select value={schedule.slotDuration} onChange={(e) => setSchedule({ ...schedule, slotDuration: Number(e.target.value) })} className="w-full border border-slate-300 p-2.5 rounded-xl bg-white outline-none focus:border-[#4C41A6]">
+                    <option value={15}>15 Minutes</option>
+                    <option value={30}>30 Minutes</option>
+                    <option value={45}>45 Minutes</option>
+                    <option value={60}>60 Minutes</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Max Patients/Day</label>
+                  <input 
+                    type="number" 
+                    value={schedule.maxDailyPatients} 
+                    onChange={(e) => setSchedule({ ...schedule, maxDailyPatients: Number(e.target.value) })} 
+                    className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
+                    min="1"
+                  />
+                </div>
+              </div>
 
-            <div className="flex gap-3">
-              <button onClick={() => setShowScheduleModal(false)} className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
-              <button onClick={saveSchedule} className="flex-1 bg-[#4C41A6] text-white py-3 rounded-xl font-bold hover:bg-[#3F3590] shadow-sm transition">Save Changes</button>
+              <div className="flex gap-4 mb-5">
+                <div className="flex-1">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Advance Booking (Days)</label>
+                  <input 
+                    type="number" 
+                    value={schedule.advanceBookingDays} 
+                    onChange={(e) => setSchedule({ ...schedule, advanceBookingDays: Number(e.target.value) })} 
+                    className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
+                    min="1"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Tomorrow's Cutoff</label>
+                  <input 
+                    type="time" 
+                    value={schedule.bookingCutoffTime} 
+                    onChange={(e) => setSchedule({ ...schedule, bookingCutoffTime: e.target.value })} 
+                    className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
+                  />
+                </div>
+              </div>
+
+              <div className="mb-8 p-4 bg-[#F7F6FC] rounded-2xl border border-[#E6E3F5]">
+                <h4 className="font-bold text-slate-800 mb-3 text-sm">Leave / Absence Notice</h4>
+                <p className="text-xs text-slate-500 mb-3">Patients will see a red warning on your profile during these dates.</p>
+                
+                <div className="mb-3">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Message</label>
+                  <input 
+                    type="text" 
+                    value={leaveMessage} 
+                    onChange={(e) => setLeaveMessage(e.target.value)} 
+                    placeholder="e.g. Attending a medical conference"
+                    className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6] text-sm" 
+                  />
+                </div>
+                
+                <div className="flex gap-2 mb-3">
+                  <div className="flex-1">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Start Date</label>
+                    <input type="date" value={leaveStartDate} onChange={(e) => setLeaveStartDate(e.target.value)} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6] text-sm" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">End Date</label>
+                    <input type="date" value={leaveEndDate} onChange={(e) => setLeaveEndDate(e.target.value)} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6] text-sm" />
+                  </div>
+                </div>
+
+                {(leaveMessage || leaveStartDate || leaveEndDate) && (
+                  <button 
+                    onClick={() => { setLeaveMessage(''); setLeaveStartDate(''); setLeaveEndDate(''); }}
+                    className="text-xs font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1"
+                  >
+                    <TrashIcon /> Clear Notice
+                  </button>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={() => setShowScheduleModal(false)} className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
+                <button onClick={saveSchedule} className="flex-1 bg-[#4C41A6] text-white py-3 rounded-xl font-bold hover:bg-[#3F3590] shadow-sm transition">Save Changes</button>
+              </div>
             </div>
           </div>
         </div>
