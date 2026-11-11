@@ -91,7 +91,7 @@ const formatTimeTo12Hour = (timeStr) => {
 export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [appointments, setAppointments] = useState([]);
   const [doctorName, setDoctorName] = useState('');
-  const [doctorProfile, setDoctorProfile] = useState(null);
+  const [doctorProfile, setDoctorProfile] = useState(null); // Now used to display photo/venue
   const [doctorFee, setDoctorFee] = useState(0);
   const [doctorId, setDoctorId] = useState(null);
   const [doctorStream, setDoctorStream] = useState('MBBS');
@@ -208,7 +208,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
         setDoctorId(doctorDoc.id);
         setDoctorName(doctorData.name);
-        setDoctorProfile(doctorData);
+        setDoctorProfile(doctorData); // Set profile data to use in the UI
         setDoctorFee(doctorData.consultationFee || 500);
         setDoctorStream(doctorData.medicalStream || 'MBBS');
         
@@ -718,21 +718,42 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             </div>
           )}
 
-          {/* UPDATED HEADER: Tick moved next to doctor's name */}
+          {/* UPDATED HEADER: Now uses doctorProfile to show image & venue */}
           <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-4xl font-extrabold text-[#322B7B] tracking-tight">Doctor Dashboard</h1>
+            <div className="flex items-center gap-4">
+              {/* Doctor Photo */}
+              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white shadow-sm bg-gray-100 flex-shrink-0 flex items-center justify-center">
+                {doctorProfile?.photoUrl ? (
+                  <img src={doctorProfile.photoUrl} alt="Dr. Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-2xl font-bold text-gray-400">
+                    {doctorName ? doctorName.charAt(0).toUpperCase() : 'D'}
+                  </span>
+                )}
               </div>
-              
-              <div className="flex items-center gap-2 mt-3">
-                <p className="text-slate-800 text-sm font-bold">Welcome back, Dr {doctorName || "Loading..."}</p>
-                {verificationStatus === 'verified' && <VerifiedIcon />}
+
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-3xl md:text-4xl font-extrabold text-[#322B7B] tracking-tight">Doctor Dashboard</h1>
+                </div>
+                
+                <div className="flex items-center gap-2 mt-2">
+                  <p className="text-slate-800 text-sm font-bold">Welcome back, Dr {doctorName || "Loading..."}</p>
+                  {verificationStatus === 'verified' && <VerifiedIcon />}
+                </div>
+                
+                {/* Venue / Clinic Name */}
+                <p className="text-sm font-bold text-[#4C41A6] mt-1 flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                  {doctorProfile?.schedule?.venues?.length > 0 
+                    ? doctorProfile.schedule.venues.map(v => v.name).join(' & ')
+                    : doctorProfile?.clinicName || doctorProfile?.clinicAddress || "Clinic Not Set"}
+                </p>
+
+                <p className="text-xs text-slate-500 mt-1">
+                  Logged in as: <span className="text-[#5E5AA8] font-semibold">{doctorPhone}</span>
+                </p>
               </div>
-              
-              <p className="text-xs text-slate-500 mt-1">
-                Logged in as: <span className="text-[#5E5AA8] font-semibold">{doctorPhone}</span>
-              </p>
             </div>
 
             <div className="hidden md:flex items-center gap-4 mt-1">
