@@ -51,14 +51,12 @@ const CalendarPlusWatermark = () => (
   </svg>
 );
 
-/* ---------- Time formatter (mirrors Android's formatTimeTo12Hour) ---------- */
-// ⬅️ ADDED: converts "16:00" / "4p.m." / "4:15 PM" → "4 p.m." / "4:15 p.m."
+/* ---------- Time formatter ---------- */
 const formatTimeTo12Hour = (timeStr) => {
   if (!timeStr) return '';
   const trimmed = String(timeStr).trim();
   const lower = trimmed.toLowerCase();
 
-  // Already has dots (e.g. "4p.m." or "4 p.m.") → normalize spacing
   if (lower.includes('a.m.') || lower.includes('p.m.')) {
     return trimmed
       .replace(/\s*a\.m\./gi, ' a.m.')
@@ -67,7 +65,6 @@ const formatTimeTo12Hour = (timeStr) => {
       .trim();
   }
 
-  // Has AM/PM without dots (e.g. "4PM", "04:15 PM") → add dots + space
   if (lower.includes('am') || lower.includes('pm')) {
     return trimmed
       .replace(/\s*am/gi, ' a.m.')
@@ -76,7 +73,6 @@ const formatTimeTo12Hour = (timeStr) => {
       .trim();
   }
 
-  // 24-hour HH:mm → h:mm p.m.
   try {
     const parts = trimmed.split(':');
     if (parts.length >= 2) {
@@ -193,9 +189,10 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     endTime: "17:00",
     slotDuration: 30,
     maxDailyPatients: 20,
-    advanceBookingDays: 7,       // NEW
-    bookingCutoffTime: "20:00",  // NEW
-    blockedDates: []
+    advanceBookingDays: 7,
+    bookingCutoffTime: "20:00",
+    blockedDates: [],
+    venues: [] // NEW: Venues array
   });
 
   useEffect(() => {
@@ -263,9 +260,10 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           setSchedule({
             ...doctorData.schedule,
             maxDailyPatients: doctorData.schedule.maxDailyPatients || 20,
-            advanceBookingDays: doctorData.schedule.advanceBookingDays || 7,        // NEW (fallback for older doctors)
-            bookingCutoffTime: doctorData.schedule.bookingCutoffTime || "20:00",    // NEW (fallback for older doctors)
-            blockedDates: doctorData.schedule.blockedDates || []
+            advanceBookingDays: doctorData.schedule.advanceBookingDays || 7,
+            bookingCutoffTime: doctorData.schedule.bookingCutoffTime || "20:00",
+            blockedDates: doctorData.schedule.blockedDates || [],
+            venues: doctorData.schedule.venues || [] // NEW: Load Venues
           });
         }
 
@@ -288,7 +286,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
             appts.forEach(newAppt => {
               const oldAppt = prevAppointmentsRef.current.find(a => a.id === newAppt.id);
               if (oldAppt && oldAppt.status !== "Cancelled" && newAppt.status === "Cancelled") {
-                // ⬅️ CHANGED: format slot via helper
                 setCancellationAlert(
                   `Patient ${newAppt.patient} has cancelled their appointment scheduled on ${newAppt.dayLabel} at ${formatTimeTo12Hour(newAppt.slot)}.`
                 );
@@ -497,22 +494,17 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
    const saveSchedule = async () => {
     if (!doctorId) return;
     
-    // Helper to convert any date string to YYYY-MM-DD
     const formatDate = (dateStr) => {
       if (!dateStr) return '';
-      // Already in YYYY-MM-DD
       if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
-      // In DD-MM-YYYY
       if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
         const parts = dateStr.split('-');
         return `${parts[2]}-${parts[1]}-${parts[0]}`;
       }
-      // In DD/MM/YYYY
       if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
         const parts = dateStr.split('/');
         return `${parts[2]}-${parts[1]}-${parts[0]}`;
       }
-      // Fallback: parse with JS Date object
       try {
         const d = new Date(dateStr);
         if (!isNaN(d.getTime())) {
@@ -525,7 +517,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     const formattedStart = formatDate(leaveStartDate);
     const formattedEnd = formatDate(leaveEndDate);
     try {
-      // The whole schedule object (including advanceBookingDays and bookingCutoffTime) is saved
       await updateDoc(doc(db, "doctors", doctorId), { 
         schedule: schedule,
         leaveMessage: leaveMessage,
@@ -533,7 +524,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         leaveEndDate: formattedEnd
       });
       
-      // Update local state to match the formatted dates
       setLeaveStartDate(formattedStart);
       setLeaveEndDate(formattedEnd);
       
@@ -837,7 +827,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                             </div>
                             <p className="text-xs text-slate-600">Phone: {appt.phone || "Not provided"}</p>
                             <div className="flex items-center gap-2 mt-3">
-                              {/* ⬅️ CHANGED: slot formatted via helper */}
                               <span className={`${isCancelled ? 'bg-slate-100 text-slate-400' : 'bg-[#EEEBFB] text-[#4C41A6]'} text-xs font-bold px-3 py-1.5 rounded-lg`}>{appt.dayLabel} at {formatTimeTo12Hour(appt.slot)}</span>
                               <span className="w-px h-4 bg-slate-300" />
                               <span className={`${isCancelled ? 'bg-slate-100 text-slate-400' : 'bg-[#EEEBFB] text-[#4C41A6]'} text-xs font-bold px-3 py-1.5 rounded-lg`}>Token #{appt.token}</span>
@@ -845,6 +834,13 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                             {appt.reason && (
                               <div className="mt-3 inline-block border border-slate-200 bg-white rounded-xl px-3.5 py-2 text-xs text-slate-600 shadow-sm">
                                 <span className="font-bold text-slate-800">Reason:</span> <span className="font-semibold ml-1">{appt.reason}</span>
+                              </div>
+                            )}
+
+                            {/* NEW: Show Venue */}
+                            {appt.venueName && (
+                              <div className="mt-2 text-xs font-bold text-[#4C41A6]">
+                                📍 {appt.venueName}
                               </div>
                             )}
 
@@ -1050,7 +1046,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                     
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        {/* ⬅️ CHANGED: slot formatted via helper */}
                         <p className="font-bold text-slate-800">{appt.dayLabel} at {formatTimeTo12Hour(appt.slot)}</p>
                         <p className="text-xs font-semibold text-slate-500">Token #{appt.token} · Status: {appt.status}</p>
                       </div>
@@ -1184,20 +1179,57 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
             <h3 className="text-2xl font-extrabold text-[#322B7B] mb-4">Manage Availability</h3>
             
-            <div className="mb-5">
-              <label className="block text-sm font-bold text-slate-700 mb-2">Working Days</label>
-              <div className="flex flex-wrap gap-2">
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
-                  <button key={day} onClick={() => {
-                      const newDays = schedule.workingDays.includes(day) ? schedule.workingDays.filter(d => d !== day) : [...schedule.workingDays, day];
-                      setSchedule({ ...schedule, workingDays: newDays });
+            {/* VENUES MANAGER */}
+            <div className="mb-6">
+              <h4 className="font-bold text-slate-800 mb-3 text-sm">Clinic Venues</h4>
+              {schedule.venues?.map((venue, index) => (
+                <div key={index} className="mb-4 p-3 border border-slate-200 rounded-xl bg-slate-50">
+                  <input 
+                    type="text" placeholder="Venue Name" 
+                    value={venue.name} 
+                    onChange={(e) => {
+                      const newVenues = [...schedule.venues];
+                      newVenues[index].name = e.target.value;
+                      setSchedule({...schedule, venues: newVenues});
                     }}
-                    className={`px-3 py-1.5 rounded-full text-sm font-bold border transition ${schedule.workingDays.includes(day) ? "bg-[#4C41A6] text-white border-[#4C41A6] shadow-sm" : "bg-white text-slate-500 border-slate-300 hover:bg-slate-50"}`}
-                  >
-                    {day}
-                  </button>
-                ))}
-              </div>
+                    className="w-full border p-2 rounded-lg mb-2 text-sm"
+                  />
+                  <input 
+                    type="text" placeholder="Address" 
+                    value={venue.address} 
+                    onChange={(e) => {
+                      const newVenues = [...schedule.venues];
+                      newVenues[index].address = e.target.value;
+                      setSchedule({...schedule, venues: newVenues});
+                    }}
+                    className="w-full border p-2 rounded-lg mb-2 text-sm"
+                  />
+                  
+                  <div className="flex flex-wrap gap-1">
+                    {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
+                      <button
+                        key={day}
+                        onClick={() => {
+                          const newVenues = [...schedule.venues];
+                          const days = newVenues[index].workingDays || [];
+                          newVenues[index].workingDays = days.includes(day) ? days.filter(d => d !== day) : [...days, day];
+                          setSchedule({...schedule, venues: newVenues});
+                        }}
+                        className={`px-2 py-1 text-xs rounded border ${venue.workingDays?.includes(day) ? 'bg-[#4C41A6] text-white' : 'bg-white'}`}
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => {
+                      const newVenues = schedule.venues.filter((_, i) => i !== index);
+                      setSchedule({...schedule, venues: newVenues});
+                  }} className="text-rose-500 text-xs mt-2 font-bold">Remove</button>
+                </div>
+              ))}
+              <button onClick={() => setSchedule({...schedule, venues: [...(schedule.venues || []), { id: Date.now().toString(), name: '', address: '', workingDays: [] }]})} className="text-[#4C41A6] text-sm font-bold">
+                + Add Venue
+              </button>
             </div>
             
             <div className="flex gap-4 mb-5">
@@ -1233,7 +1265,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
               </div>
             </div>
 
-            {/* NEW: Advance booking window & tomorrow's cutoff */}
             <div className="flex gap-4 mb-5">
               <div className="flex-1">
                 <label className="block text-sm font-bold text-slate-700 mb-2">Advance Booking (Days)</label>
