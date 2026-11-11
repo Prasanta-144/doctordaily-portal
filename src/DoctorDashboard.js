@@ -143,7 +143,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [editPhotoPreview, setEditPhotoPreview] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
 
-  // Schedule State (REMOVED dateToBlock / setDateToBlock)
+  // Schedule State
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [schedule, setSchedule] = useState({
     workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
@@ -151,6 +151,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     endTime: "17:00",
     slotDuration: 30,
     maxDailyPatients: 20,
+    advanceBookingDays: 7,       // NEW
+    bookingCutoffTime: "20:00",  // NEW
     blockedDates: []
   });
 
@@ -219,6 +221,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
           setSchedule({
             ...doctorData.schedule,
             maxDailyPatients: doctorData.schedule.maxDailyPatients || 20,
+            advanceBookingDays: doctorData.schedule.advanceBookingDays || 7,        // NEW (fallback for older doctors)
+            bookingCutoffTime: doctorData.schedule.bookingCutoffTime || "20:00",    // NEW (fallback for older doctors)
             blockedDates: doctorData.schedule.blockedDates || []
           });
         }
@@ -477,8 +481,8 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
     const formattedStart = formatDate(leaveStartDate);
     const formattedEnd = formatDate(leaveEndDate);
-
     try {
+      // The whole schedule object (including advanceBookingDays and bookingCutoffTime) is saved
       await updateDoc(doc(db, "doctors", doctorId), { 
         schedule: schedule,
         leaveMessage: leaveMessage,
@@ -1180,6 +1184,29 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                   onChange={(e) => setSchedule({ ...schedule, maxDailyPatients: Number(e.target.value) })} 
                   className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
                   min="1"
+                />
+              </div>
+            </div>
+
+            {/* NEW: Advance booking window & tomorrow's cutoff */}
+            <div className="flex gap-4 mb-5">
+              <div className="flex-1">
+                <label className="block text-sm font-bold text-slate-700 mb-2">Advance Booking (Days)</label>
+                <input 
+                  type="number" 
+                  value={schedule.advanceBookingDays} 
+                  onChange={(e) => setSchedule({ ...schedule, advanceBookingDays: Number(e.target.value) })} 
+                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
+                  min="1"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-bold text-slate-700 mb-2">Tomorrow's Cutoff</label>
+                <input 
+                  type="time" 
+                  value={schedule.bookingCutoffTime} 
+                  onChange={(e) => setSchedule({ ...schedule, bookingCutoffTime: e.target.value })} 
+                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
                 />
               </div>
             </div>
