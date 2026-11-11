@@ -143,15 +143,14 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [editPhotoPreview, setEditPhotoPreview] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
 
-  // Schedule State
+  // Schedule State (REMOVED dateToBlock / setDateToBlock)
   const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [dateToBlock, setDateToBlock] = useState("");
   const [schedule, setSchedule] = useState({
     workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
     startTime: "10:00",
     endTime: "17:00",
     slotDuration: 30,
-    maxDailyPatients: 20, // New field
+    maxDailyPatients: 20,
     blockedDates: []
   });
 
@@ -185,7 +184,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         setVerificationStatus(doctorData.verificationStatus || 'pending');
         setRegistrationId(doctorData.registrationId || '');
         
-        // --- NEW: Load Leave Data ---
+        // --- Load Leave Data ---
         setLeaveMessage(doctorData.leaveMessage || '');
         setLeaveStartDate(doctorData.leaveStartDate || '');
         setLeaveEndDate(doctorData.leaveEndDate || '');
@@ -269,7 +268,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     };
   }, [doctorPhone, onLogout]);
 
-  // --- HELPER: Check if currently on leave ---
   const isCurrentlyOnLeave = () => {
     if (!leaveStartDate || !leaveEndDate) return false;
     const today = new Date().toISOString().split('T')[0];
@@ -588,7 +586,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
         <div className="max-w-5xl mx-auto p-6 md:p-10">
           
-          {/* --- NEW: CURRENT LEAVE BANNER --- */}
           {isCurrentlyOnLeave() && (
             <div className="mb-6 bg-rose-50 border border-rose-200 px-5 py-4 rounded-2xl flex items-start gap-4 shadow-sm">
               <div className="w-10 h-10 flex items-center justify-center rounded-full shrink-0 bg-white text-rose-600 shadow-sm mt-1">
@@ -1099,7 +1096,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       )}
 
-      {/* --- SCHEDULE MODAL (UPDATED) --- */}
+      {/* --- SCHEDULE MODAL --- */}
       {showScheduleModal && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
@@ -1154,7 +1151,6 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
               </div>
             </div>
 
-            {/* --- NEW: LEAVE NOTICE SECTION --- */}
             <div className="mb-8 p-4 bg-[#F7F6FC] rounded-2xl border border-[#E6E3F5]">
               <h4 className="font-bold text-slate-800 mb-3 text-sm">Leave / Absence Notice</h4>
               <p className="text-xs text-slate-500 mb-3">Patients will see a red warning on your profile during these dates.</p>
