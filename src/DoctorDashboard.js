@@ -56,7 +56,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [doctorName, setDoctorName] = useState('');
   const [doctorFee, setDoctorFee] = useState(0);
   const [doctorId, setDoctorId] = useState(null);
-  const [doctorStream, setDoctorStream] = useState('MBBS'); // <-- Track medical stream
+  const [doctorStream, setDoctorStream] = useState('MBBS');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -66,6 +66,11 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [verifyInput, setVerifyInput] = useState('');
   const [verifyLoading, setVerifyLoading] = useState(false);
+
+  // --- LEAVE NOTICE STATE ---
+  const [leaveMessage, setLeaveMessage] = useState('');
+  const [leaveStartDate, setLeaveStartDate] = useState('');
+  const [leaveEndDate, setLeaveEndDate] = useState('');
 
   // --- REAL-TIME CANCELLATION ALERT STATE ---
   const [cancellationAlert, setCancellationAlert] = useState(null);
@@ -90,6 +95,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [selectedPatientHistory, setSelectedPatientHistory] = useState([]);
   const [selectedPatientData, setSelectedPatientData] = useState(null);
 
+  // Generate days for the selected month
   const getDaysInMonth = (year, month) => {
     const date = new Date(year, month, 1);
     const days = [];
@@ -120,6 +126,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     setSelectedDate(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-01`);
   };
 
+  // --- SUBSCRIPTION STATE ---
   const [subscription, setSubscription] = useState({
     status: 'trial',
     trialEndsAt: null,
@@ -127,6 +134,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     isDue: false
   });
 
+  // --- EDIT PROFILE STATE ---
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '', clinicName: '', clinicAddress: '', mapLocation: '', consultationFee: 0
@@ -135,6 +143,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const [editPhotoPreview, setEditPhotoPreview] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
 
+  // Schedule State
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [dateToBlock, setDateToBlock] = useState("");
   const [schedule, setSchedule] = useState({
@@ -142,6 +151,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     startTime: "10:00",
     endTime: "17:00",
     slotDuration: 30,
+    maxDailyPatients: 20, // New field
     blockedDates: []
   });
 
@@ -172,9 +182,13 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         setDoctorFee(doctorData.consultationFee || 500);
         setDoctorStream(doctorData.medicalStream || 'MBBS');
         
-        // Load Verification Data
         setVerificationStatus(doctorData.verificationStatus || 'pending');
         setRegistrationId(doctorData.registrationId || '');
+        
+        // --- NEW: Load Leave Data ---
+        setLeaveMessage(doctorData.leaveMessage || '');
+        setLeaveStartDate(doctorData.leaveStartDate || '');
+        setLeaveEndDate(doctorData.leaveEndDate || '');
         
         setEditForm({
           name: doctorData.name || '',
@@ -205,6 +219,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         if (doctorData.schedule) {
           setSchedule({
             ...doctorData.schedule,
+            maxDailyPatients: doctorData.schedule.maxDailyPatients || 20,
             blockedDates: doctorData.schedule.blockedDates || []
           });
         }
@@ -253,6 +268,13 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
       if (unsubscribeAppts) unsubscribeAppts();
     };
   }, [doctorPhone, onLogout]);
+
+  // --- HELPER: Check if currently on leave ---
+  const isCurrentlyOnLeave = () => {
+    if (!leaveStartDate || !leaveEndDate) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return today >= leaveStartDate && today <= leaveEndDate;
+  };
 
   const getVerificationLabel = () => {
     switch(doctorStream) {
@@ -430,8 +452,13 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
   const saveSchedule = async () => {
     if (!doctorId) return;
     try {
-      await updateDoc(doc(db, "doctors", doctorId), { schedule: schedule });
-      alert("Schedule updated successfully!");
+      await updateDoc(doc(db, "doctors", doctorId), { 
+        schedule: schedule,
+        leaveMessage: leaveMessage,
+        leaveStartDate: leaveStartDate,
+        leaveEndDate: leaveEndDate
+      });
+      alert("Schedule & Leave Notice updated successfully!");
       setShowScheduleModal(false);
     } catch (error) { alert("Error saving schedule: " + error.message); }
   };
@@ -561,6 +588,23 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
 
         <div className="max-w-5xl mx-auto p-6 md:p-10">
           
+          {/* --- NEW: CURRENT LEAVE BANNER --- */}
+          {isCurrentlyOnLeave() && (
+            <div className="mb-6 bg-rose-50 border border-rose-200 px-5 py-4 rounded-2xl flex items-start gap-4 shadow-sm">
+              <div className="w-10 h-10 flex items-center justify-center rounded-full shrink-0 bg-white text-rose-600 shadow-sm mt-1">
+                <WarnIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-rose-800">You are currently on leave</h3>
+                <p className="text-sm text-rose-600 mt-0.5">
+                  Patients are seeing an "On Leave" notice on your profile. <br/>
+                  <b>Message:</b> {leaveMessage || "Not available"} <br/>
+                  <b>Dates:</b> {leaveStartDate} to {leaveEndDate}
+                </p>
+              </div>
+            </div>
+          )}
+
           {verificationStatus !== 'verified' && (
             <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 px-5 py-4 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
               <div className="flex items-center gap-4">
@@ -697,14 +741,13 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               
-                              {/* FIXED: Changed h3 to button for ESLint a11y rules */}
-                              <button 
+                              <h3 
                                 onClick={() => handlePatientClick(appt)}
-                                className={`text-lg font-extrabold hover:underline transition text-left ${isCancelled ? 'text-slate-500 line-through' : 'text-[#2B2468] hover:text-[#4C41A6]'}`}
+                                className={`text-lg font-extrabold hover:underline cursor-pointer transition ${isCancelled ? 'text-slate-500 line-through' : 'text-[#2B2468] hover:text-[#4C41A6]'}`}
                                 title="Click to view patient history"
                               >
                                 {appt.patient}
-                              </button>
+                              </h3>
                               
                               {isPending && !appt.rescheduleRequested && <span className="inline-flex items-center gap-1 bg-[#FDE4EA] text-[#D6456B] border border-[#F9C9D4] text-[10px] px-2.5 py-1 rounded-full font-bold"><WarnIcon /> Awaiting Patient Action</span>}
                               {appt.rescheduleRequested && <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-2.5 py-1 rounded-full font-bold"><WarnIcon /> Awaiting Reschedule</span>}
@@ -1056,11 +1099,12 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
         </div>
       )}
 
-      {/* --- SCHEDULE MODAL --- */}
+      {/* --- SCHEDULE MODAL (UPDATED) --- */}
       {showScheduleModal && (
         <div className="fixed inset-0 bg-[#1E1A4D]/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full my-8">
             <h3 className="text-2xl font-extrabold text-[#322B7B] mb-4">Manage Availability</h3>
+            
             <div className="mb-5">
               <label className="block text-sm font-bold text-slate-700 mb-2">Working Days</label>
               <div className="flex flex-wrap gap-2">
@@ -1076,6 +1120,7 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 ))}
               </div>
             </div>
+            
             <div className="flex gap-4 mb-5">
               <div className="flex-1">
                 <label className="block text-sm font-bold text-slate-700 mb-2">Start Time</label>
@@ -1086,37 +1131,66 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
                 <input type="time" value={schedule.endTime} onChange={(e) => setSchedule({ ...schedule, endTime: e.target.value })} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" />
               </div>
             </div>
-            <div className="mb-5">
-              <label className="block text-sm font-bold text-slate-700 mb-2">Slot Duration</label>
-              <select value={schedule.slotDuration} onChange={(e) => setSchedule({ ...schedule, slotDuration: Number(e.target.value) })} className="w-full border border-slate-300 p-2.5 rounded-xl bg-white outline-none focus:border-[#4C41A6]">
-                <option value={15}>15 Minutes</option>
-                <option value={30}>30 Minutes</option>
-                <option value={45}>45 Minutes</option>
-                <option value={60}>60 Minutes</option>
-              </select>
-            </div>
-            <div className="mb-8 p-4 bg-[#F7F6FC] rounded-2xl border border-[#E6E3F5]">
-              <label className="block text-sm font-bold text-slate-700 mb-2">Block a Date (Mark as Full)</label>
-              <div className="flex gap-2 mb-3">
-                <input type="date" value={dateToBlock} onChange={(e) => setDateToBlock(e.target.value)} className="flex-1 border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6] text-sm" />
-                <button onClick={() => {
-                  if (dateToBlock && !schedule.blockedDates.includes(dateToBlock)) {
-                    setSchedule({ ...schedule, blockedDates: [...schedule.blockedDates, dateToBlock] });
-                    setDateToBlock("");
-                  }
-                }} className="bg-[#4C41A6] text-white px-4 rounded-xl font-bold hover:bg-[#3F3590] text-sm">Block</button>
+            
+            <div className="flex gap-4 mb-5">
+              <div className="flex-1">
+                <label className="block text-sm font-bold text-slate-700 mb-2">Slot Duration</label>
+                <select value={schedule.slotDuration} onChange={(e) => setSchedule({ ...schedule, slotDuration: Number(e.target.value) })} className="w-full border border-slate-300 p-2.5 rounded-xl bg-white outline-none focus:border-[#4C41A6]">
+                  <option value={15}>15 Minutes</option>
+                  <option value={30}>30 Minutes</option>
+                  <option value={45}>45 Minutes</option>
+                  <option value={60}>60 Minutes</option>
+                </select>
               </div>
-              {schedule.blockedDates.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {schedule.blockedDates.map(date => (
-                    <span key={date} className="bg-rose-100 text-rose-700 border border-rose-200 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-2">
-                      {date}
-                      <button onClick={() => setSchedule({ ...schedule, blockedDates: schedule.blockedDates.filter(d => d !== date) })} className="hover:text-rose-900">✕</button>
-                    </span>
-                  ))}
+              <div className="flex-1">
+                <label className="block text-sm font-bold text-slate-700 mb-2">Max Patients/Day</label>
+                <input 
+                  type="number" 
+                  value={schedule.maxDailyPatients} 
+                  onChange={(e) => setSchedule({ ...schedule, maxDailyPatients: Number(e.target.value) })} 
+                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6]" 
+                  min="1"
+                />
+              </div>
+            </div>
+
+            {/* --- NEW: LEAVE NOTICE SECTION --- */}
+            <div className="mb-8 p-4 bg-[#F7F6FC] rounded-2xl border border-[#E6E3F5]">
+              <h4 className="font-bold text-slate-800 mb-3 text-sm">Leave / Absence Notice</h4>
+              <p className="text-xs text-slate-500 mb-3">Patients will see a red warning on your profile during these dates.</p>
+              
+              <div className="mb-3">
+                <label className="block text-xs font-bold text-slate-700 mb-1">Message</label>
+                <input 
+                  type="text" 
+                  value={leaveMessage} 
+                  onChange={(e) => setLeaveMessage(e.target.value)} 
+                  placeholder="e.g. Attending a medical conference"
+                  className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6] text-sm" 
+                />
+              </div>
+              
+              <div className="flex gap-2 mb-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Start Date</label>
+                  <input type="date" value={leaveStartDate} onChange={(e) => setLeaveStartDate(e.target.value)} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6] text-sm" />
                 </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">End Date</label>
+                  <input type="date" value={leaveEndDate} onChange={(e) => setLeaveEndDate(e.target.value)} className="w-full border border-slate-300 p-2.5 rounded-xl outline-none focus:border-[#4C41A6] text-sm" />
+                </div>
+              </div>
+
+              {(leaveMessage || leaveStartDate || leaveEndDate) && (
+                <button 
+                  onClick={() => { setLeaveMessage(''); setLeaveStartDate(''); setLeaveEndDate(''); }}
+                  className="text-xs font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1"
+                >
+                  <TrashIcon /> Clear Notice
+                </button>
               )}
             </div>
+
             <div className="flex gap-3">
               <button onClick={() => setShowScheduleModal(false)} className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
               <button onClick={saveSchedule} className="flex-1 bg-[#4C41A6] text-white py-3 rounded-xl font-bold hover:bg-[#3F3590] shadow-sm transition">Save Changes</button>
