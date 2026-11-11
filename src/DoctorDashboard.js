@@ -447,20 +447,53 @@ export default function DoctorDashboard({ doctorPhone, onLogout }) {
     } catch (error) { alert("Error updating: " + error.message); }
   };
 
-  const saveSchedule = async () => {
+   const saveSchedule = async () => {
     if (!doctorId) return;
+    
+    // Helper to convert any date string to YYYY-MM-DD
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '';
+      // Already in YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+      // In DD-MM-YYYY
+      if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
+        const parts = dateStr.split('-');
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      // In DD/MM/YYYY
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+        const parts = dateStr.split('/');
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      // Fallback: parse with JS Date object
+      try {
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) {
+          return d.toISOString().split('T')[0];
+        }
+      } catch (e) {}
+      return dateStr;
+    };
+
+    const formattedStart = formatDate(leaveStartDate);
+    const formattedEnd = formatDate(leaveEndDate);
+
     try {
       await updateDoc(doc(db, "doctors", doctorId), { 
         schedule: schedule,
         leaveMessage: leaveMessage,
-        leaveStartDate: leaveStartDate,
-        leaveEndDate: leaveEndDate
+        leaveStartDate: formattedStart,
+        leaveEndDate: formattedEnd
       });
+      
+      // Update local state to match the formatted dates
+      setLeaveStartDate(formattedStart);
+      setLeaveEndDate(formattedEnd);
+      
       alert("Schedule & Leave Notice updated successfully!");
       setShowScheduleModal(false);
     } catch (error) { alert("Error saving schedule: " + error.message); }
   };
-
   const clearHistory = async () => {
     const toClear = appointments.filter(a => 
       (a.status === "Completed" || a.status === "Cancelled") && !a.clearedByDoctor
